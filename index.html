@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PHF Production Board</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#06080B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PHF Board">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<link media="all" onerror="this.remove()" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="xlsx.full.min.js"></script>
+<script>
+if(typeof XLSX==='undefined'){
+  document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/scr'+'ipt>');
+}
+</script>
+<style>
+:root{
+  --void:#06080B; --panel:#0D1218; --panel2:#111823; --line:#1E2A36;
+  --ink:#DCE9F2; --mute:#6E8496; --dim:#465868;
+  --ontrack:#2BFFB0; --watch:#FFD429; --behind:#FF7A1A; --overdue:#FF2E63; --done:#3E5266;
+  --purchase:#2A9BFF; --inprod:#C77DFF; --packed:#2BFFB0; --sample:#FF9CE0;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--void)}
+body{background:radial-gradient(1100px 620px at 12% -8%,#0E1A24 0%,transparent 62%),var(--void);
+  color:var(--ink);font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  font-size:15px;line-height:1.45;min-height:100vh;padding:18px 22px 30px;-webkit-font-smoothing:antialiased}
+.num,td.n,.qty{font-family:"IBM Plex Mono","Consolas",monospace;font-variant-numeric:tabular-nums}
+h1,h2,.oid,.stat .v{font-family:"Archivo","Segoe UI Semibold","Segoe UI",sans-serif;letter-spacing:-.015em}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;flex-wrap:wrap;
+  padding-bottom:13px;margin-bottom:18px;border-bottom:1px solid var(--line);position:relative}
+header::after{content:"";position:absolute;left:0;bottom:-1px;width:170px;height:1px;
+  background:var(--ontrack);box-shadow:0 0 11px var(--ontrack)}
+.brand h1{font-size:27px;font-weight:800;line-height:1}
+.brand p{color:var(--mute);font-size:12.5px;margin-top:4px;letter-spacing:.05em}
+.rightbar{display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap}
+.clock{text-align:right}.clock .d{font-size:19px;font-weight:600}
+.clock .t{color:var(--mute);font-size:13px;font-family:"IBM Plex Mono","Consolas",monospace}
+.src{display:flex;align-items:center;gap:9px;font-size:11.5px;color:var(--mute);
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ontrack);flex:none;box-shadow:0 0 9px var(--ontrack)}
+.dot.stale{background:var(--watch);box-shadow:0 0 9px var(--watch)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.dot.live{animation:pulse 2.6s ease-in-out infinite}
+button{font:inherit;font-size:12.5px;padding:6px 13px;border:1px solid var(--line);background:var(--panel);
+  color:var(--mute);border-radius:2px;cursor:pointer;letter-spacing:.04em}
+button:hover{color:var(--ontrack);border-color:var(--ontrack)}
+button:focus-visible{outline:2px solid var(--ontrack);outline-offset:2px}
+
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);margin-bottom:22px}
+.stat{background:var(--panel);padding:11px 14px}
+.stat .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--dim)}
+.stat .v{font-size:26px;font-weight:700;line-height:1.15;margin-top:3px;
+  font-family:"IBM Plex Mono","Consolas",monospace;font-variant-numeric:tabular-nums}
+.stat.hot .v{color:var(--overdue);text-shadow:0 0 18px rgba(255,46,99,.5)}
+.stat.warm .v{color:var(--watch);text-shadow:0 0 18px rgba(255,212,41,.35)}
+.stat.good .v{color:var(--ontrack);text-shadow:0 0 18px rgba(43,255,176,.35)}
+.stat.pur .v{color:var(--purchase);text-shadow:0 0 18px rgba(42,155,255,.35)}
+.stat.inp .v{color:var(--inprod);text-shadow:0 0 18px rgba(199,125,255,.35)}
+.stat.click{cursor:pointer;position:relative}
+.stat.click:hover{background:var(--panel2)}
+.stat.click .k::after{content:" \25B8";color:var(--ontrack)}
+
+section{margin-bottom:26px}
+.shead{display:flex;align-items:baseline;gap:13px;margin-bottom:10px;flex-wrap:wrap}
+.shead h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.16em}
+.shead span{font-size:12.5px;color:var(--dim);font-family:"IBM Plex Mono","Consolas",monospace}
+
+.orders{display:grid;grid-template-columns:repeat(auto-fill,minmax(348px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);padding:13px 15px;position:relative;
+  overflow:hidden;cursor:pointer}
+.card:hover{border-color:var(--dim)}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--done)}
+.card.ontrack::before{background:var(--ontrack);box-shadow:0 0 14px var(--ontrack)}
+.card.watch::before{background:var(--watch);box-shadow:0 0 14px var(--watch)}
+.card.behind::before{background:var(--behind);box-shadow:0 0 16px var(--behind)}
+.card.overdue::before{background:var(--overdue);box-shadow:0 0 20px var(--overdue)}
+.card.behind{background:linear-gradient(100deg,rgba(255,122,26,.09),transparent 58%),var(--panel)}
+.card.overdue{background:linear-gradient(100deg,rgba(255,46,99,.13),transparent 58%),var(--panel);
+  border-color:rgba(255,46,99,.42)}
+.card.done{opacity:.5}
+.crow{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.oid{font-size:16.5px;font-weight:700}
+.cust{font-size:11px;color:var(--dim);letter-spacing:.13em;font-family:"IBM Plex Mono","Consolas",monospace}
+.flag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;padding:3px 8px;
+  border:1px solid;white-space:nowrap;border-radius:2px}
+.f-ontrack{color:var(--ontrack);border-color:rgba(43,255,176,.4);background:rgba(43,255,176,.08)}
+.f-watch{color:var(--watch);border-color:rgba(255,212,41,.4);background:rgba(255,212,41,.08)}
+.f-behind{color:var(--behind);border-color:rgba(255,122,26,.45);background:rgba(255,122,26,.1)}
+.f-overdue{color:#fff;border-color:var(--overdue);background:var(--overdue);box-shadow:0 0 14px rgba(255,46,99,.55)}
+.f-done{color:var(--dim);border-color:var(--line)}
+.f-ongoing{color:var(--purchase);border-color:rgba(42,155,255,.45);background:rgba(42,155,255,.09)}
+.pace{margin:12px 0 7px;position:relative;height:26px}
+.track{position:absolute;inset:6px 0 auto;height:13px;background:var(--panel2);border:1px solid var(--line)}
+.fill{position:absolute;top:6px;left:0;height:13px;transition:width .6s cubic-bezier(.2,.7,.3,1)}
+.card.ontrack .fill{background:var(--ontrack);box-shadow:0 0 16px rgba(43,255,176,.55)}
+.card.watch .fill{background:var(--watch);box-shadow:0 0 16px rgba(255,212,41,.45)}
+.card.behind .fill{background:var(--behind);box-shadow:0 0 16px rgba(255,122,26,.5)}
+.card.overdue .fill{background:var(--overdue);box-shadow:0 0 18px rgba(255,46,99,.6)}
+.card.done .fill,.card.ongoing .fill{background:var(--done)}
+.mark{position:absolute;top:0;width:1px;height:26px;background:var(--ink);box-shadow:0 0 8px rgba(220,233,242,.85)}
+.mark::after{content:"TODAY";position:absolute;top:-1px;left:6px;font-size:8px;font-weight:700;
+  letter-spacing:.16em;color:var(--ink);white-space:nowrap;font-family:"IBM Plex Mono","Consolas",monospace}
+.mark.right::after{left:auto;right:6px}
+.stage{display:flex;height:17px;margin:9px 0 6px;background:var(--panel2);
+  border:1px solid var(--line);overflow:hidden}
+.stage i{display:block;height:100%}
+.stage i.p{background:var(--purchase);box-shadow:0 0 10px rgba(42,155,255,.5)}
+.stage i.i{background:var(--inprod);box-shadow:0 0 10px rgba(199,125,255,.5)}
+.stage i.k{background:var(--packed);box-shadow:0 0 10px rgba(43,255,176,.5)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:var(--dim);
+  font-family:"IBM Plex Mono","Consolas",monospace;margin-bottom:8px}
+.slab{display:flex;gap:16px;flex-wrap:wrap;font-size:11.5px;margin-bottom:7px;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.slab b{font-weight:600}
+.slab .p{color:var(--purchase)}.slab .i{color:var(--inprod)}
+.slab .k{color:var(--packed)}.slab .n{color:var(--dim)}
+.sw{display:inline-block;width:8px;height:8px;margin-right:5px;vertical-align:middle}
+.sw.p{background:var(--purchase)}.sw.i{background:var(--inprod)}
+.sw.k{background:var(--packed)}.sw.n{background:var(--panel2);border:1px solid var(--line)}
+.cfoot{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--mute)}
+.cfoot b{color:var(--ink);font-family:"IBM Plex Mono","Consolas",monospace;font-weight:600}
+.gap{font-family:"IBM Plex Mono","Consolas",monospace;font-weight:600;font-size:11.5px}
+.gap.neg{color:var(--behind)}.gap.pos{color:var(--ontrack)}
+.stagetag{font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.st-purchase{color:var(--purchase)}.st-inprod{color:var(--inprod)}
+.st-packed{color:var(--packed)}.st-none{color:var(--dim)}
+.note{color:var(--watch);font-size:11px;font-family:"IBM Plex Mono","Consolas",monospace}
+.more{position:absolute;right:12px;bottom:10px;font-size:9.5px;letter-spacing:.13em;color:var(--dim);
+  font-family:"IBM Plex Mono","Consolas",monospace;opacity:0}
+.card:hover .more{opacity:1;color:var(--ontrack)}
+
+.samp{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:10px}
+.scard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--sample);padding:11px 13px}
+.scard .c{font-family:"Archivo","Segoe UI",sans-serif;font-size:15px;font-weight:700}
+.scard .code{font-size:10.5px;color:var(--sample);letter-spacing:.13em;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.scard .d{font-size:12px;color:var(--mute);margin-top:6px}
+.scard .days{font-size:21px;font-weight:600;font-family:"IBM Plex Mono","Consolas",monospace;color:var(--sample)}
+
+.fam{border:1px solid var(--line);background:var(--panel)}
+.famrow{display:grid;grid-template-columns:minmax(150px,1.35fr) 3fr 92px 58px;gap:15px;align-items:center;
+  padding:9px 16px;border-bottom:1px solid var(--line)}
+.famrow:last-child{border-bottom:0}
+.famrow .nm{font-size:13px}
+.bar{height:10px;background:var(--panel2);border:1px solid var(--line);position:relative;display:flex;overflow:hidden}
+.bar i{display:block;height:100%}
+.bar i.p{background:var(--purchase);box-shadow:0 0 12px rgba(42,155,255,.4)}
+.bar i.i{background:var(--inprod);box-shadow:0 0 12px rgba(199,125,255,.4)}
+.bar i.k{background:var(--packed);box-shadow:0 0 12px rgba(43,255,176,.4)}
+.famrow .qty{text-align:right;font-weight:600;font-size:14.5px;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.famrow .pc{text-align:right;font-family:"IBM Plex Mono","Consolas",monospace;font-size:12px;color:var(--dim)}
+
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);font-size:13px}
+th{text-align:left;font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--dim);
+  font-weight:600;padding:9px 13px;border-bottom:1px solid var(--line)}
+td{padding:7px 13px;border-bottom:1px solid rgba(30,42,54,.55);color:var(--mute)}
+tr:last-child td{border-bottom:0}
+td.n{text-align:right;font-family:"IBM Plex Mono","Consolas",monospace;font-variant-numeric:tabular-nums}
+td.code{font-family:"IBM Plex Mono","Consolas",monospace;color:var(--ink)}
+td b{color:var(--ink)}
+.chip{display:inline-block;font-size:9.5px;letter-spacing:.1em;padding:1px 6px;
+  border:1px solid rgba(43,255,176,.35);color:var(--ontrack);margin-left:7px;
+  font-family:"IBM Plex Mono","Consolas",monospace;border-radius:2px}
+
+#veil{position:fixed;inset:0;background:rgba(3,5,8,.84);z-index:50;display:flex;align-items:flex-start;
+  justify-content:center;padding:36px 20px;overflow:auto}
+#veil#crash{background:#2A0A12;border:1px solid #FF2E63;color:#FFD9E2;padding:16px 18px;
+  margin-bottom:16px;font-size:13px;line-height:1.6;
+  font-family:"IBM Plex Mono","Consolas",monospace;word-break:break-word}
+#crash b{color:#FF6B92}
+.hide{display:none!important}
+
+/* ---------------- phones and small tablets ---------------- */
+@media (max-width:760px){
+  body{padding:12px 12px calc(24px + env(safe-area-inset-bottom));font-size:14px}
+  header{padding-bottom:10px;margin-bottom:14px;gap:10px}
+  .brand h1{font-size:21px}
+  .brand p{font-size:10.5px}
+  .rightbar{width:100%;justify-content:space-between;align-items:center;gap:10px}
+  .clock{text-align:left}
+  .clock .d{font-size:13px}
+  .clock .t{font-size:11px}
+  .src{font-size:10px;gap:6px;flex-wrap:wrap}
+  button{padding:8px 12px}
+
+  .strip{grid-template-columns:repeat(2,1fr)}
+  .stat{padding:10px 12px}
+  .stat .k{font-size:9px;letter-spacing:.08em}
+  .stat .v{font-size:22px}
+
+  .shead{margin-bottom:8px;gap:6px}
+  .shead h2{font-size:11.5px;letter-spacing:.11em}
+  .shead span{font-size:11px}
+  section{margin-bottom:20px}
+
+  .orders,.charts,.samp,.cplaint{grid-template-columns:1fr}
+  .card{padding:12px 13px}
+  .oid{font-size:15.5px}
+  .slab{gap:10px;font-size:11px}
+  .more{display:none}
+
+  /* wide tables scroll sideways instead of squashing */
+  section table,.mbody table{display:block;overflow-x:auto;white-space:nowrap;
+    -webkit-overflow-scrolling:touch}
+  th,td{padding:7px 10px}
+
+  .famrow{grid-template-columns:1fr 70px 46px;gap:9px;padding:8px 12px}
+  .famrow .bar{display:none}
+
+  .cwrap{gap:12px}
+  .lgnd{font-size:11px;min-width:0}
+
+  .capbig .n{font-size:34px}
+
+  /* the overlay becomes a full-screen sheet */
+  #veil{padding:0}
+  #modal{max-width:none;min-height:100%;border:0}
+  .mhead{padding:12px 14px}
+  #modal h3{font-size:17px}
+  .mbody{padding:12px 14px 20px}
+  .mstat{grid-template-columns:repeat(2,1fr)}
+  .mstat .v{font-size:17px}
+}
+@media (max-width:400px){
+  .strip{grid-template-columns:1fr 1fr}
+  .stat .v{font-size:20px}
+  .capbig .n{font-size:29px}
+}
+#modal{background:var(--panel);border:1px solid var(--line);max-width:1200px;width:100%;
+  box-shadow:0 0 60px rgba(0,0,0,.7)}
+.mhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:15px 20px;
+  border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+#modal h3{font-family:"Archivo","Segoe UI",sans-serif;font-size:20px;font-weight:700}
+.msub{color:var(--dim);font-size:12px;margin-top:4px;font-family:"IBM Plex Mono","Consolas",monospace}
+.mbody{padding:15px 20px 22px}
+.mstat{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:1px;
+  background:var(--line);border:1px solid var(--line);margin-bottom:15px}
+.mstat div{background:var(--panel2);padding:9px 12px}
+.mstat .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.13em;color:var(--dim)}
+.mstat .v{font-size:19px;font-weight:600;margin-top:2px;font-family:"IBM Plex Mono","Consolas",monospace}
+.mstat .v.p{color:var(--purchase)}.mstat .v.i{color:var(--inprod)}.mstat .v.k{color:var(--packed)}
+.minibar{display:flex;height:7px;background:var(--panel2);border:1px solid var(--line);min-width:66px;overflow:hidden}
+.minibar i{display:block;height:100%}
+.minibar i.p{background:var(--purchase)}.minibar i.i{background:var(--inprod)}.minibar i.k{background:var(--packed)}
+
+
+.cplaint{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:12px}
+.ccard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--overdue);
+  padding:11px 13px;cursor:pointer}
+.ccard.clear{border-left-color:var(--ontrack);opacity:.62}
+.ccard:hover{border-color:var(--dim)}
+.ccard .c{font-family:"Archivo","Segoe UI",sans-serif;font-size:16px;font-weight:700}
+.ccard .big{font-size:25px;font-weight:700;font-family:"IBM Plex Mono","Consolas",monospace;
+  color:var(--overdue);line-height:1.1}
+.ccard.clear .big{color:var(--ontrack)}
+.ccard .d{font-size:11.5px;color:var(--dim);margin-top:4px;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px}
+.chart{background:var(--panel);border:1px solid var(--line);padding:14px 16px}
+.chart h3{font-family:"Archivo","Segoe UI",sans-serif;font-size:12px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.14em;color:var(--mute);margin-bottom:10px}
+.cwrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.cwrap svg{flex:none}
+.donut-mid{font-family:"IBM Plex Mono","Consolas",monospace;fill:var(--ink);
+  font-size:19px;font-weight:600;text-anchor:middle}
+.donut-sub{font-family:"IBM Plex Mono","Consolas",monospace;fill:var(--dim);
+  font-size:8.5px;text-anchor:middle;letter-spacing:.14em}
+.lgnd{flex:1;min-width:150px;font-size:12px;font-family:"IBM Plex Mono","Consolas",monospace}
+.lgnd div{display:flex;align-items:center;gap:8px;padding:2.5px 0}
+.lgnd i{width:9px;height:9px;flex:none;border-radius:1px}
+.lgnd .nm{flex:1;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgnd .pc{color:var(--ink);font-weight:600}
+.lgnd .vl{color:var(--dim);min-width:56px;text-align:right}
+
+.cap{background:var(--panel);border:1px solid var(--line);padding:15px 17px;margin-bottom:12px}
+.capbig{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.capbig .n{font-family:"IBM Plex Mono","Consolas",monospace;font-size:44px;font-weight:700;
+  color:var(--ontrack);text-shadow:0 0 26px rgba(43,255,176,.4);line-height:1}
+.capbig .u{color:var(--mute);font-size:14px}
+.capsub{color:var(--dim);font-size:12px;margin-top:8px;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.capsub b{color:var(--ink)}
+.rate{color:var(--ontrack);font-weight:600}
+
+#drop{border:1px dashed var(--line);background:var(--panel);padding:58px 30px;text-align:center}
+#drop.over{border-color:var(--ontrack);box-shadow:0 0 34px rgba(43,255,176,.16) inset}
+#drop h2{font-size:21px;margin-bottom:9px;font-family:"Archivo","Segoe UI",sans-serif}
+#drop p{color:var(--mute);max-width:560px;margin:0 auto 20px;font-size:14px}
+.err{color:var(--overdue);margin-top:14px;font-size:13px;font-family:"IBM Plex Mono","Consolas",monospace}
+footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);padding-top:12px;line-height:1.7}
+#crash{background:#2A0A12;border:1px solid #FF2E63;color:#FFD9E2;padding:16px 18px;
+  margin-bottom:16px;font-size:13px;line-height:1.6;
+  font-family:"IBM Plex Mono","Consolas",monospace;word-break:break-word}
+#crash b{color:#FF6B92}
+.hide{display:none!important}
+
+/* ---------------- phones and small tablets ---------------- */
+@media (max-width:760px){
+  body{padding:12px 12px calc(24px + env(safe-area-inset-bottom));font-size:14px}
+  header{padding-bottom:10px;margin-bottom:14px;gap:10px}
+  .brand h1{font-size:21px}
+  .brand p{font-size:10.5px}
+  .rightbar{width:100%;justify-content:space-between;align-items:center;gap:10px}
+  .clock{text-align:left}
+  .clock .d{font-size:13px}
+  .clock .t{font-size:11px}
+  .src{font-size:10px;gap:6px;flex-wrap:wrap}
+  button{padding:8px 12px}
+
+  .strip{grid-template-columns:repeat(2,1fr)}
+  .stat{padding:10px 12px}
+  .stat .k{font-size:9px;letter-spacing:.08em}
+  .stat .v{font-size:22px}
+
+  .shead{margin-bottom:8px;gap:6px}
+  .shead h2{font-size:11.5px;letter-spacing:.11em}
+  .shead span{font-size:11px}
+  section{margin-bottom:20px}
+
+  .orders,.charts,.samp,.cplaint{grid-template-columns:1fr}
+  .card{padding:12px 13px}
+  .oid{font-size:15.5px}
+  .slab{gap:10px;font-size:11px}
+  .more{display:none}
+
+  /* wide tables scroll sideways instead of squashing */
+  section table,.mbody table{display:block;overflow-x:auto;white-space:nowrap;
+    -webkit-overflow-scrolling:touch}
+  th,td{padding:7px 10px}
+
+  .famrow{grid-template-columns:1fr 70px 46px;gap:9px;padding:8px 12px}
+  .famrow .bar{display:none}
+
+  .cwrap{gap:12px}
+  .lgnd{font-size:11px;min-width:0}
+
+  .capbig .n{font-size:34px}
+
+  /* the overlay becomes a full-screen sheet */
+  #veil{padding:0}
+  #modal{max-width:none;min-height:100%;border:0}
+  .mhead{padding:12px 14px}
+  #modal h3{font-size:17px}
+  .mbody{padding:12px 14px 20px}
+  .mstat{grid-template-columns:repeat(2,1fr)}
+  .mstat .v{font-size:17px}
+}
+@media (max-width:400px){
+  .strip{grid-template-columns:1fr 1fr}
+  .stat .v{font-size:20px}
+  .capbig .n{font-size:29px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>Production Board</h1>
+    <p>PROFESSIONAL HOSPITAL FURNISHERS &middot; SIALKOT <span id="ver" style="color:var(--ontrack)"></span></p>
+  </div>
+  <div class="rightbar">
+    <div class="src hide" id="srcbox">
+      <span class="dot" id="dot"></span><span id="srctext"></span>
+      <span id="checktext" style="color:var(--dim)"></span>
+      <button id="install" class="hide">Install app</button>
+      <button id="reload">Refresh now</button>
+      <button id="export">Export history</button>
+    </div>
+    <div class="clock"><div class="d" id="today"></div><div class="t" id="now"></div></div>
+  </div>
+</header>
+
+<div id="crash" class="hide"></div>
+
+<div id="drop">
+  <h2 id="dh">Connecting&hellip;</h2>
+  <p id="dp">Reading your Google Sheet&hellip;</p>
+  <button id="pick">Choose file instead</button>
+  <input type="file" id="file" accept=".xlsx,.xlsm" multiple class="hide">
+  <div class="err hide" id="err"></div>
+</div>
+
+<div id="veil" class="hide"><div id="modal">
+  <div class="mhead">
+    <div><h3 id="mtitle"></h3><div class="msub" id="msub"></div></div>
+    <button id="close">Close &times;</button>
+  </div>
+  <div class="mbody" id="mbody"></div>
+</div></div>
+
+<main id="board" class="hide">
+  <div class="strip" id="strip"></div>
+
+  <section>
+    <div class="shead"><h2>Orders</h2><span id="ordnote"></span></div>
+    <div class="legend">
+      <span><i class="sw p"></i>At purchase</span>
+      <span><i class="sw i"></i>In production</span>
+      <span><i class="sw k"></i>Packed</span>
+      <span><i class="sw n"></i>Not started</span>
+      <span style="color:var(--mute)">click any order for its items</span>
+    </div>
+    <div class="orders" id="orders"></div>
+  </section>
+
+  <section>
+    <div class="shead"><h2>Still to produce by family</h2><span id="famnote"></span></div>
+    <div class="fam" id="fam"></div>
+  </section>
+
+  <section>
+    <div class="shead"><h2>Where the work sits</h2><span>share of everything still to pack</span></div>
+    <div class="charts" id="charts"></div>
+  </section>
+
+  <section>
+    <div class="shead"><h2>Capacity needed</h2><span id="capnote"></span></div>
+    <div class="cap" id="cap"></div>
+    <div id="captable"></div>
+  </section>
+
+  <section id="cwrap2">
+    <div class="shead"><h2>Customer complaints</h2><span id="cnote"></span></div>
+    <div class="cplaint" id="ccards"></div>
+    <div id="ctable"></div>
+  </section>
+
+  <section>
+    <div class="shead"><h2>Flow</h2><span id="flownote"></span></div>
+    <div id="flow"></div>
+  </section>
+
+  <section id="sampwrap" class="hide">
+    <div class="shead"><h2>Sampling</h2><span id="sampnote"></span></div>
+    <div class="samp" id="samp"></div>
+  </section>
+
+  <footer id="foot"></footer>
+</main>
+
+<script>
+// Show failures on screen — a blank page tells nobody anything, least of all on a phone.
+window.onerror=function(msg,src,line,col){
+  try{
+    var el=document.getElementById('crash');
+    if(!el) return false;
+    el.className='';
+    el.innerHTML='<b>The board hit a problem on this device.</b><br>'+
+      String(msg)+'<br>line '+line+':'+col+
+      '<br><br>Screenshot this and send it over. '+
+      'If this is an older iPhone or Android, that is the most likely cause.';
+    var b=document.getElementById('board'); if(b) b.className='hide';
+    var d=document.getElementById('drop'); if(d) d.className='hide';
+  }catch(e){}
+  return false;
+};
+const VERSION='v10 · 8 Aug 2026';
+
+/* ============================================================
+   WHERE THE DATA COMES FROM
+   Both live in Google Sheets. Edit the sheet, the board follows.
+   To point at a different sheet, replace the links below.
+   ============================================================ */
+const SRC={
+  tracker:{
+    name:'Order tracker',
+    xlsx:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRvDsDhDz424ZdNzgoB-wrKvWQB9vWM4ytAx430pMjeL5UNFtIeHYleA_iewyqIswLCVd_sPQiNQAS4/pub?output=xlsx',
+    id:'1VrK4d53fXXVOUoUN7xIo9qA_UkDvTCIo8RPNQBjL3P0',
+    local:'PHF_Order_Tracker.xlsx'
+  },
+  complaints:{
+    name:'Complaint record',
+    xlsx:'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYldzjNk6E8h5bAeN1tKKGzPSLyOtQkwcSAUS3ZGO4PJMfWzPWqrQeh7NcijKCKxILQicoHghAmks7/pub?output=xlsx',
+    id:'1j10VLlSvmXfXsCSX13uhylORyHSt8lYI3-77_-qZWk8',
+    local:'CustomerComplaintRecord.xlsx'
+  }
+};
+const POLL=10*60*1000;
+let route='';            // which way the data actually arrived
+const KEY='phf_board_v3', HKEY='phf_hist_v1', HDAYS=400;
+const $=s=>document.querySelector(s);
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+const DAY=864e5;
+let DATA=null,LIVE=[],lastMod=null,auto=false,lastCheck=Date.now();
+let COMPLAINTS=null,cMod=null;
+
+function tick(){const d=new Date();
+  $('#today').textContent=d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  $('#now').textContent=d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
+tick(); setInterval(tick,20000);
+$('#ver').textContent=VERSION;
+
+const jget=k=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}};
+const jset=(k,o)=>{try{localStorage.setItem(k,JSON.stringify(o));return true}catch(e){return false}};
+
+/* ---------------- parsing ---------------- */
+function toDate(v){
+  if(v instanceof Date) return v;
+  if(typeof v==='number'){const p=XLSX.SSF.parse_date_code(v);return p?new Date(p.y,p.m-1,p.d):null;}
+  if(typeof v==='string'&&v.trim()){const d=new Date(v);return isNaN(d)?null:d;}
+  return null;
+}
+const num=v=>{const n=typeof v==='number'?v:parseFloat(String(v||'').replace(/,/g,''));return isFinite(n)?n:0;};
+const grid=sh=>XLSX.utils.sheet_to_json(sh,{header:1,cellDates:true,blankrows:false});
+
+function parse(wb,stamp){
+  const os=wb.Sheets['Orders'];
+  if(!os) throw new Error('No sheet named "Orders". Point the board at PHF_Order_Tracker.xlsx.');
+  const g=grid(os), head=g[0].map(h=>String(h||'').trim()), ix=n=>head.indexOf(n);
+  const orders=[];
+  for(let i=1;i<g.length;i++){
+    const r=g[i], id=String(r[ix('Order No')]||'').trim();
+    if(!id||id.toUpperCase()==='TOTAL') break;
+    if(!wb.Sheets[id]) continue;
+    orders.push({id,cust:String(r[ix('Customer')]||'').trim(),
+      kind:String(r[ix('Type')]||'Order').trim(),
+      odate:toDate(r[ix('Order Date')]),ddate:toDate(r[ix('Delivery Date')]),
+      status:String(r[ix('Status')]||'').trim(),
+      note:String(r[ix('Notes')]||'').trim(),items:[]});
+  }
+  if(!orders.length) throw new Error('The Orders sheet has no rows the board can read.');
+  for(const o of orders){
+    const gg=grid(wb.Sheets[o.id]), h=gg[0].map(x=>String(x||'').trim());
+    const j=n=>{let k=h.indexOf(n); if(k<0&&n==='Packed') k=h.indexOf('Qty Packed'); return k;};
+    for(let i=1;i<gg.length;i++){
+      const r=gg[i], code=String(r[j('Item Code')]||'').trim();
+      if(!code||code.toUpperCase()==='TOTAL') break;
+      const qty=num(r[j('Qty To Produce')]); if(!qty) continue;
+      let pur=Math.max(0,num(r[j('At Purchase')])),
+          inp=Math.max(0,num(r[j('In Production')])),
+          pkd=Math.max(0,num(r[j('Packed')]));
+      let over=pur+inp+pkd-qty;
+      if(over>0){const t=Math.min(pur,over);pur-=t;over-=t;
+                 const t2=Math.min(inp,over);inp-=t2;over-=t2;pkd=Math.max(0,pkd-over);}
+      o.items.push({code,desc:String(r[j('Description')]||''),
+        cat:String(r[j('Category')]||'Uncategorised').trim(),
+        qty,pur,inp,packed:pkd,none:Math.max(0,qty-pur-inp-pkd),
+        also:String(r[j('Also Ordered By')]||'').trim()});
+    }
+    const s=f=>o.items.reduce((a,i)=>a+i[f],0);
+    o.qty=s('qty');o.pur=s('pur');o.inp=s('inp');o.packed=s('packed');o.none=s('none');
+    o.bal=o.qty-o.packed; o.pc=o.qty?o.packed/o.qty:0;
+    o.stage = o.packed>=o.qty ? 'packed'
+            : (o.inp>=o.pur&&o.inp>0) ? 'inprod'
+            : (o.pur>0?'purchase':(o.packed>0?'packed':'none'));
+  }
+  // sampling
+  const samples=[];
+  const ss=wb.Sheets['Sampling'];
+  if(ss){
+    const sg=grid(ss), sh=sg[0].map(x=>String(x||'').trim()), k=n=>sh.indexOf(n);
+    for(let i=1;i<sg.length;i++){
+      const r=sg[i]; const code=String(r[k('Code')]||'').trim();
+      const cust=String(r[k('Customer')]||'').trim();
+      if(!code&&!cust) continue;
+      if(code.toUpperCase()==='SAMPLING TRACKER') break;
+      samples.push({code,cust,what:String(r[k('What')]||'').trim(),qty:num(r[k('Qty')]),
+        started:toDate(r[k('Started')]),status:String(r[k('Status')]||'Sampling').trim(),
+        closed:toDate(r[k('Closed')]),outcome:String(r[k('Outcome')]||'').trim(),
+        notes:String(r[k('Notes')]||'').trim()});
+    }
+  }
+  // capacity settings live in Excel so they can be changed there
+  let target=null;
+  const ts=wb.Sheets['Targets'];
+  if(ts){
+    const tg=grid(ts), find=lab=>{
+      for(const r of tg) if(String(r[0]||'').trim().toLowerCase()===lab) return r[1];
+      return null;};
+    target={date:toDate(find('target ship-by date')),
+            week:num(find('working days per week'))||6,
+            hol:num(find('holidays to deduct'))||0};
+  }
+  return {orders,samples,target,stamp:stamp||Date.now()};
+}
+
+/* ---------------- history ---------------- */
+function snapshot(d){
+  const h=jget(HKEY)||{};
+  const key=new Date(d.stamp).toISOString().slice(0,10);
+  const snap={};
+  d.orders.forEach(o=>o.items.forEach(i=>{snap[o.id+'|'+i.code]=[i.pur,i.inp,i.packed,i.qty];}));
+  h[key]={t:d.stamp,s:snap};
+  const keys=Object.keys(h).sort();
+  while(keys.length>HDAYS){delete h[keys.shift()];}
+  jset(HKEY,h);
+  return h;
+}
+function flowStats(d){
+  const h=jget(HKEY)||{};
+  const days=Object.keys(h).sort();
+  const enter={},pack={},lastMove={};
+  days.forEach(day=>{
+    const s=h[day].s;
+    for(const k in s){
+      const [p,i,kk]=s[k];
+      if(i>0&&!enter[k]) enter[k]=day;
+      if(kk>0&&!pack[k]) pack[k]=day;
+      const prev=lastMove[k];
+      if(!prev||prev.v[0]!==p||prev.v[1]!==i||prev.v[2]!==kk) lastMove[k]={day,v:[p,i,kk]};
+    }
+  });
+  const dd=(a,b)=>Math.round((new Date(b)-new Date(a))/DAY);
+  const toPack=[];
+  for(const k in pack) if(enter[k]) toPack.push(dd(enter[k],pack[k]));
+  const today=new Date().toISOString().slice(0,10);
+  const idle=[];
+  d.orders.forEach(o=>o.items.forEach(i=>{
+    if(i.qty-i.packed<=0) return;
+    const k=o.id+'|'+i.code, lm=lastMove[k];
+    idle.push({order:o.id,cust:o.cust,code:i.code,desc:i.desc,cat:i.cat,
+      bal:i.qty-i.packed,stage:i.inp>0?'In production':(i.pur>0?'At purchase':'Not started'),
+      since:lm?lm.day:null,days:lm?dd(lm.day,today):null});
+  }));
+  idle.sort(function(a,b){
+    var ad=(a.days==null?-1:a.days), bd=(b.days==null?-1:b.days);
+    return (bd-ad)||(b.bal-a.bal);});
+  const avg=a=>a.length?Math.round(a.reduce((s,x)=>s+x,0)/a.length):null;
+  return {days:days.length,first:days[0],avgToPack:avg(toPack),samples:toPack.length,idle};
+}
+
+/* ---------------- urgency ---------------- */
+function risk(o,today){
+  if(/shipped/i.test(o.status)||(o.qty>0&&o.packed>=o.qty)) return {k:'done',lab:'Complete',gap:0,exp:1};
+  if(!o.ddate) return {k:'ongoing',lab:o.kind==='Balance'?'Ongoing':'No date',gap:0,exp:0};
+  const left=Math.round((o.ddate-today)/DAY);
+  if(left<0) return {k:'overdue',lab:'Overdue',gap:o.pc-1,exp:1,left};
+  const start=(o.odate&&o.odate<o.ddate)?o.odate:new Date(o.ddate-60*DAY);
+  const exp=Math.max(0,Math.min(1,((today-start)/DAY)/((o.ddate-start)/DAY)));
+  const gap=o.pc-exp;
+  if(gap<-0.15) return {k:'behind',lab:'Behind',gap,exp,left};
+  if(gap<-0.05) return {k:'watch',lab:'Watch',gap,exp,left};
+  return {k:'ontrack',lab:'On track',gap,exp,left};
+}
+const rank={overdue:0,behind:1,watch:2,ongoing:3,ontrack:4,done:5};
+const STG={purchase:'At purchase',inprod:'In production',packed:'Packing',none:'Not started'};
+
+/* ---------------- render ---------------- */
+function render(d){
+  DATA=d;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const O=d.orders.map(o=>{o.odate=o.odate?new Date(o.odate):null;
+    o.ddate=o.ddate?new Date(o.ddate):null; o.r=risk(o,today); return o;});
+  O.sort((a,b)=>rank[a.r.k]-rank[b.r.k]||(a.ddate&&b.ddate?a.ddate-b.ddate:0)||b.bal-a.bal);
+  LIVE=O.filter(o=>o.r.k!=='done');
+  const hot=O.filter(o=>o.r.k==='overdue'||o.r.k==='behind');
+  const tq=O.reduce((s,o)=>s+o.qty,0), tp=O.reduce((s,o)=>s+o.packed,0);
+  const idleQ=LIVE.reduce((s,o)=>s+o.pur+o.none,0), inpQ=LIVE.reduce((s,o)=>s+o.inp,0);
+  const soon=LIVE.filter(o=>o.r.left!=null&&o.r.left<=30).length;
+  const pct=tq?Math.round(tp/tq*100):0;
+
+  $('#strip').innerHTML=[
+    ['Total ordered',fmt(tq),'',''],
+    ['Idle at purchase',fmt(idleQ),'pur','click" data-modal="idle'],
+    ['In production',fmt(inpQ),'inp','click" data-modal="inprod'],
+    ['Packed',fmt(tp),'good',''],
+    ['Still to produce',fmt(tq-tp),'','click" data-modal="family'],
+    ['Complete',pct+'%','',''],
+    ['Live orders',LIVE.length,'',''],
+    ['Needs attention',hot.length,hot.length?'hot':'',''],
+    ['Open complaints',COMPLAINTS?COMPLAINTS.filter(c=>c.open).length:'—',
+      (COMPLAINTS&&COMPLAINTS.some(c=>c.open))?'hot':'','']
+  ].map(([k,v,c,x])=>`<div class="stat ${c} ${x}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  // sampling
+  const act=(d.samples||[]).filter(s=>!/done|dropped/i.test(s.status)&&(s.cust||s.code));
+  if(act.length){
+    $('#sampwrap').classList.remove('hide');
+    $('#sampnote').textContent=act.length+' active · set Status to Done to close';
+    $('#samp').innerHTML=act.map(s=>{
+      const dys=s.started?Math.round((today-new Date(s.started))/DAY):null;
+      return `<div class="scard">
+        <div class="code">${s.code||'—'}</div>
+        <div class="c">${s.cust||'(no name)'}</div>
+        <div class="d">${s.what||'sampling in progress'}${s.qty?` · ${fmt(s.qty)} pcs`:''}</div>
+        <div class="d"><span class="days">${dys!=null?dys:'—'}</span> days${s.started?' since '+new Date(s.started).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):''}</div>
+        <div class="d" style="color:var(--dim)">${s.status||''}${s.notes?' · '+s.notes:''}</div>
+      </div>`;}).join('');
+  } else $('#sampwrap').classList.add('hide');
+
+  $('#ordnote').textContent=hot.length?hot.length+' need attention — shown first':'all orders keeping pace';
+  $('#orders').innerHTML=O.map(o=>{
+    const pc=Math.round(o.pc*100), ex=Math.round(o.r.exp*100), g=Math.round(o.r.gap*100);
+    const due=o.ddate?o.ddate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'no date';
+    const left=o.r.left!=null?(o.r.left<0?Math.abs(o.r.left)+' days late':o.r.left+' days left')
+      :(o.kind==='Balance'?'carried forward':'set a date');
+    const gapTxt=(o.r.k==='done'||!o.ddate)?'':
+      (g<0?`<span class="gap neg">${g} pts behind pace</span>`:`<span class="gap pos">+${g} pts ahead</span>`);
+    const seg=(w,c)=>w>0?`<i class="${c}" style="width:${(w/o.qty*100).toFixed(2)}%"></i>`:'';
+    const stCls={purchase:'st-purchase',inprod:'st-inprod',packed:'st-packed',none:'st-none'}[o.stage];
+    return `<article class="card ${o.r.k}" data-order="${o.id}">
+      <div class="crow">
+        <div><span class="oid">${o.id}</span> <span class="cust">${o.cust}</span></div>
+        <span class="flag f-${o.r.k==='ongoing'?'ongoing':o.r.k}">${o.r.lab}</span>
+      </div>
+      ${o.ddate?`<div class="pace"><div class="track"></div>
+        <div class="fill" style="width:${pc}%"></div>
+        <div class="mark ${ex>86?'right':''}" style="left:${ex}%"></div></div>`:''}
+      <div class="stage">${seg(o.pur,'p')}${seg(o.inp,'i')}${seg(o.packed,'k')}</div>
+      <div class="slab">
+        <span class="p">Purchase <b>${fmt(o.pur)}</b></span>
+        <span class="i">Production <b>${fmt(o.inp)}</b></span>
+        <span class="k">Packed <b>${fmt(o.packed)}</b></span>
+        ${o.none>0?`<span class="n">Not started <b>${fmt(o.none)}</b></span>`:''}
+      </div>
+      <div class="cfoot">
+        <span><b>${pc}%</b> packed &middot; <b>${fmt(o.bal)}</b> left of ${fmt(o.qty)}</span>
+        <span><b>${due}</b> &middot; ${left}</span>
+      </div>
+      <div class="cfoot" style="margin-top:5px">
+        <span class="stagetag ${stCls}">${STG[o.stage]}</span>${gapTxt}
+      </div>
+      ${o.note?`<div class="cfoot" style="margin-top:6px"><span class="note">! ${o.note}</span></div>`:''}
+      <div class="more">ITEMS &#9656;</div>
+    </article>`;}).join('');
+
+  // families
+  const fam={};
+  LIVE.forEach(o=>o.items.forEach(i=>{
+    const f=fam[i.cat]||(fam[i.cat]={qty:0,pur:0,inp:0,packed:0,none:0});
+    f.qty+=i.qty;f.pur+=i.pur;f.inp+=i.inp;f.packed+=i.packed;f.none+=i.none;}));
+  const fl=Object.entries(fam).map(([k,v])=>({name:k,...v,bal:v.qty-v.packed}))
+    .filter(f=>f.bal>0).sort((a,b)=>b.bal-a.bal);
+  const mx=Math.max(1,...fl.map(f=>f.bal));
+  $('#famnote').textContent=fl.length+' families · live orders only';
+  $('#fam').innerHTML=fl.map(f=>{
+    const w=x=>(x/mx*100).toFixed(2);
+    return `<div class="famrow">
+      <div class="nm">${f.name}</div>
+      <div class="bar">${f.pur?`<i class="p" style="width:${w(f.pur)}%"></i>`:''}${f.inp?`<i class="i" style="width:${w(f.inp)}%"></i>`:''}</div>
+      <div class="qty">${fmt(f.bal)}</div>
+      <div class="pc">${f.qty?Math.round(f.packed/f.qty*100):0}%</div>
+    </div>`;}).join('')||'<div class="famrow"><div class="nm">Nothing outstanding.</div></div>';
+
+  renderCharts();
+  renderCapacity();
+  renderComplaints();
+
+  // flow
+  const fs=flowStats(d);
+  const top=fs.idle.slice(0,10);
+  $('#flownote').textContent=fs.days<=1
+    ? 'building history — one reading so far'
+    : `${fs.days} days of history since ${new Date(fs.first).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}`;
+  $('#flow').innerHTML=`
+    <div class="mstat" style="margin-bottom:12px">
+      <div><div class="k">Readings kept</div><div class="v">${fs.days}</div></div>
+      <div><div class="k">Avg days production &rarr; packed</div><div class="v">${fs.avgToPack!=null?fs.avgToPack:'—'}</div></div>
+      <div><div class="k">Items measured</div><div class="v">${fs.samples}</div></div>
+      <div><div class="k">Items outstanding</div><div class="v">${fmt(fs.idle.length)}</div></div>
+    </div>
+    <table><thead><tr><th>Item</th><th>Description</th><th>Order</th><th>Stage</th>
+      <th style="text-align:right">Balance</th><th style="text-align:right">Days unchanged</th></tr></thead>
+      <tbody>${top.map(i=>`<tr><td class="code">${i.code}</td><td>${i.desc}</td>
+        <td class="code">${i.order}</td><td>${i.stage}</td>
+        <td class="n"><b>${fmt(i.bal)}</b></td>
+        <td class="n">${i.days!=null?i.days:'—'}</td></tr>`).join('')||
+        '<tr><td colspan="6">Nothing outstanding.</td></tr>'}</tbody></table>`;
+
+  const hrs=(Date.now()-d.stamp)/36e5;
+  $('#dot').className='dot'+(hrs>20?' stale':(auto?' live':''));
+  $('#srctext').textContent=(route||'loaded');
+  $('#checktext').textContent=(auto?'· auto-checked ':'· loaded ')+
+    new Date(lastCheck).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  $('#srcbox').classList.remove('hide');
+  $('#foot').innerHTML='The bar is pieces packed; the line marks where you should be today. '+
+    'Receiving, polish and final polish all count as In production.<br>'+
+    'Reading from <b>'+(route||'a local file')+'</b>, checked every 10 minutes. '+
+    'Google refreshes a published sheet a few minutes after you edit it.<br>'+
+    'Every reading is kept so the board can work out how long things sit at each stage — use Export history to take that data out.';
+  $('#drop').classList.add('hide'); $('#board').classList.remove('hide');
+}
+
+/* ---------------- complaints (separate workbook) ---------------- */
+function dmy(v){
+  if(v instanceof Date) return v;
+  if(typeof v==='number'){const p=XLSX.SSF.parse_date_code(v);return p?new Date(p.y,p.m-1,p.d):null;}
+  const s=String(v||'').trim();
+  const m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/);
+  if(m){let y=+m[3]; if(y<100) y+=2000; return new Date(y,+m[2]-1,+m[1]);}
+  const d=new Date(s); return isNaN(d)?null:d;
+}
+function parseComplaints(wb){
+  const out=[];
+  for(const name of wb.SheetNames){
+    if(/template/i.test(name)) continue;
+    const g=grid(wb.Sheets[name]);
+    let hr=-1;
+    for(let i=0;i<Math.min(g.length,12);i++){
+      if(g[i]&&g[i].some(c=>String(c||'').trim().toLowerCase()==='complaint')){hr=i;break;}
+    }
+    if(hr<0) continue;
+    const head=g[hr].map(c=>String(c||'').trim().toLowerCase());
+    const col=n=>head.indexOf(n);
+    for(let i=hr+1;i<g.length;i++){
+      const r=g[i]||[];
+      const text=String(r[col('complaint')]||'').trim();
+      const no=String(r[col('comp no')]||'').trim();
+      if(!text&&!no) continue;
+      const st=String(r[col('status')]||'Open').trim()||'Open';
+      out.push({cust:name.trim(),no,date:dmy(r[col('date')]),
+        item:String(r[col('item no')]||'').trim(),
+        lot:String(r[col('lot no')]||'').trim(),
+        inv:String(r[col('inv no')]||'').trim(),
+        qty:num(r[col('qty')]),text,
+        dept:String(r[col('dept')]||'').trim(),
+        action:String(r[col('action')]||'').trim(),
+        status:st, open:!/resolved|rejected|closed/i.test(st),
+        closed:dmy(r[col('resolved on')])});
+    }
+  }
+  return out;
+}
+function renderComplaints(){
+  const sec=$('#cwrap2');
+  if(!COMPLAINTS){ sec.classList.add('hide'); return; }
+  sec.classList.remove('hide');
+  const all=COMPLAINTS, open=all.filter(c=>c.open);
+  const today=new Date(); today.setHours(0,0,0,0);
+  const by={};
+  all.forEach(c=>{const b=by[c.cust]||(by[c.cust]={all:0,open:0,qty:0});
+    b.all++; if(c.open){b.open++; b.qty+=c.qty||0;}});
+  $('#cnote').textContent=open.length
+    ? `${open.length} open of ${all.length} logged · ${Object.keys(by).length} customers`
+    : `all ${all.length} logged complaints resolved`;
+  $('#ccards').innerHTML=Object.entries(by).sort((a,b)=>b[1].open-a[1].open)
+    .map(([cu,b])=>`<div class="ccard ${b.open?'':'clear'}" data-cplaint="${cu}">
+      <div class="c">${cu}</div>
+      <div class="big">${b.open}</div>
+      <div class="d">open of ${b.all} logged${b.qty?` · ${fmt(b.qty)} pcs`:''}</div>
+    </div>`).join('');
+  const rows=open.slice().sort((a,b)=>(a.date&&b.date?a.date-b.date:0));
+  $('#ctable').innerHTML=`<table><thead><tr><th>Customer</th><th>Comp No</th><th>Logged</th>
+    <th>Age</th><th>Item</th><th style="text-align:right">Qty</th><th>Complaint</th>
+    <th>Dept</th><th>Status</th></tr></thead><tbody>
+    ${rows.map(c=>`<tr><td><b>${c.cust}</b></td><td class="code">${c.no||'—'}</td>
+      <td class="n">${c.date?c.date.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—'}</td>
+      <td class="n">${c.date?Math.max(0,Math.round((today-c.date)/DAY))+'d':'—'}</td>
+      <td class="code">${c.item||'—'}</td><td class="n">${c.qty?fmt(c.qty):'—'}</td>
+      <td>${c.text}</td><td>${c.dept||'—'}</td>
+      <td style="color:var(--overdue)">${c.status}</td></tr>`).join('')
+      ||'<tr><td colspan="9">No open complaints.</td></tr>'}
+    </tbody></table>`;
+}
+function complaintModal(cust){
+  const list=COMPLAINTS.filter(c=>c.cust===cust);
+  const open=list.filter(c=>c.open).length;
+  openModal('Complaints · '+cust, `${open} open of ${list.length} logged`,
+    `<table><thead><tr><th>Comp No</th><th>Logged</th><th>Item</th><th>Lot</th><th>Invoice</th>
+      <th style="text-align:right">Qty</th><th>Complaint</th><th>Dept</th><th>Action</th>
+      <th>Status</th></tr></thead><tbody>
+      ${list.map(c=>`<tr><td class="code">${c.no||'—'}</td>
+        <td class="n">${c.date?c.date.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'—'}</td>
+        <td class="code">${c.item||'—'}</td><td class="code">${c.lot||'—'}</td>
+        <td class="code">${c.inv||'—'}</td><td class="n">${c.qty?fmt(c.qty):'—'}</td>
+        <td>${c.text}</td><td>${c.dept||'—'}</td><td>${c.action||'—'}</td>
+        <td style="color:${c.open?'var(--overdue)':'var(--ontrack)'}">${c.status}</td></tr>`).join('')}
+    </tbody></table>`);
+}
+
+/* ---------------- charts ---------------- */
+const PIE=['#2BFFB0','#2A9BFF','#C77DFF','#FFD429','#FF7A1A','#FF2E63','#3EE6E0','#A0FF6E','#FF9CE0','#7B8D9B'];
+
+function donut(parts,centre,label){
+  const tot=parts.reduce((s,p)=>s+p.v,0)||1;
+  const R=52,SW=21,C=2*Math.PI*R;
+  let off=0;
+  const rings=parts.map((p,i)=>{
+    const len=p.v/tot*C;
+    const s=`<circle cx="70" cy="70" r="${R}" fill="none" stroke="${PIE[i%PIE.length]}"
+      stroke-width="${SW}" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}"
+      stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 70 70)"><title>${p.n}: ${fmt(p.v)} (${Math.round(p.v/tot*100)}%)</title></circle>`;
+    off+=len; return s;}).join('');
+  return `<div class="cwrap">
+    <svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="${label}">
+      <circle cx="70" cy="70" r="${R}" fill="none" stroke="var(--panel2)" stroke-width="${SW}"/>
+      ${rings}
+      <text class="donut-mid" x="70" y="69">${centre}</text>
+      <text class="donut-sub" x="70" y="83">${label.toUpperCase()}</text>
+    </svg>
+    <div class="lgnd">${parts.map((p,i)=>`<div>
+      <i style="background:${PIE[i%PIE.length]}"></i>
+      <span class="nm" title="${p.n}">${p.n}</span>
+      <span class="vl">${fmt(p.v)}</span>
+      <span class="pc">${Math.round(p.v/tot*100)}%</span></div>`).join('')}</div>
+  </div>`;
+}
+function topN(map,n){
+  const a=Object.entries(map).map(([k,v])=>({n:k,v})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+  if(a.length<=n) return a;
+  const rest=a.slice(n).reduce((s,x)=>s+x.v,0);
+  return a.slice(0,n).concat(rest>0?[{n:'Everything else',v:rest}]:[]);
+}
+function renderCharts(){
+  const cust={},fam={},stage={'At purchase':0,'In production':0,'Packed':0,'Not started':0};
+  let bal=0;
+  LIVE.forEach(o=>o.items.forEach(i=>{
+    const b=i.qty-i.packed;
+    if(b>0){cust[o.cust]=(cust[o.cust]||0)+b; fam[i.cat]=(fam[i.cat]||0)+b; bal+=b;}
+    stage['At purchase']+=i.pur; stage['In production']+=i.inp;
+    stage['Packed']+=i.packed; stage['Not started']+=i.none;
+  }));
+  const short=n=>n>=1e6?(n/1e6).toFixed(1)+'m':n>=1000?Math.round(n/1000)+'k':String(Math.round(n));
+  const sTot=Object.values(stage).reduce((s,x)=>s+x,0);
+  $('#charts').innerHTML=
+    `<div class="chart"><h3>Share by customer</h3>${donut(topN(cust,6),short(bal),'to pack')}</div>`+
+    `<div class="chart"><h3>Share by family</h3>${donut(topN(fam,6),short(bal),'to pack')}</div>`+
+    `<div class="chart"><h3>Where every piece is now</h3>${donut(
+       Object.entries(stage).map(([n,v])=>({n,v})).filter(x=>x.v>0),short(sTot),'total')}</div>`;
+}
+
+/* ---------------- capacity ---------------- */
+function workingDays(from,to,week,hol){
+  let n=0; const d=new Date(from); d.setHours(0,0,0,0);
+  const end=new Date(to); end.setHours(0,0,0,0);
+  while(d<=end){const w=d.getDay();
+    if(week>=6? w!==0 : (w!==0&&w!==6)) n++;
+    d.setDate(d.getDate()+1);}
+  return Math.max(1,n-(hol||0));
+}
+function renderCapacity(){
+  const t=DATA.target;
+  if(!t||!t.date){
+    $('#capnote').textContent='add a target date on the Targets sheet';
+    $('#cap').innerHTML='<div class="capsub">No target ship-by date found. '+
+      'Set one on the <b>Targets</b> sheet in the workbook and it will appear here.</div>';
+    $('#captable').innerHTML=''; return;
+  }
+  const today=new Date(); today.setHours(0,0,0,0);
+  const end=new Date(t.date);
+  const days=workingDays(today,end,t.week,t.hol);
+  const fam={}; let bal=0;
+  LIVE.forEach(o=>o.items.forEach(i=>{const b=i.qty-i.packed;
+    if(b>0){fam[i.cat]=(fam[i.cat]||0)+b; bal+=b;}}));
+  const rate=Math.ceil(bal/days);
+  const past=end<today;
+  $('#capnote').textContent=`target ${end.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})} · `+
+    `${t.week===5?'Mon-Fri':'Mon-Sat'}${t.hol?` · ${t.hol} holidays`:''}`;
+  $('#cap').innerHTML=`<div class="capbig">
+      <span class="n">${past?'—':fmt(rate)}</span>
+      <span class="u">pieces packed per working day</span></div>
+    <div class="capsub">${past?'The target date has passed — set a new one on the Targets sheet.':
+      `<b>${fmt(bal)}</b> still to pack &middot; <b>${days}</b> working days left &middot; `+
+      `about <b>${fmt(rate*(t.week===5?5:6))}</b> a week`}</div>`;
+  const rows=Object.entries(fam).map(([n,v])=>({n,v})).sort((a,b)=>b.v-a.v);
+  $('#captable').innerHTML=`<table><thead><tr><th>Instrument family</th>
+      <th style="text-align:right">Still to pack</th>
+      <th style="text-align:right">Required per day</th>
+      <th style="text-align:right">Share of the load</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><td><b>${r.n}</b></td>
+        <td class="n">${fmt(r.v)}</td>
+        <td class="n rate">${fmt(Math.ceil(r.v/days))}</td>
+        <td class="n">${bal?Math.round(r.v/bal*100):0}%</td></tr>`).join('')}
+      </tbody><tfoot><tr><td><b>TOTAL</b></td><td class="n"><b>${fmt(bal)}</b></td>
+      <td class="n rate"><b>${fmt(rate)}</b></td><td class="n">100%</td></tr></tfoot></table>`;
+}
+
+/* ---------------- drill-downs ---------------- */
+function openModal(t,s,b){$('#mtitle').textContent=t;$('#msub').textContent=s;
+  $('#mbody').innerHTML=b;$('#veil').classList.remove('hide');$('#close').focus();}
+const shut=()=>$('#veil').classList.add('hide');
+$('#close').onclick=shut;
+$('#veil').onclick=e=>{if(e.target.id==='veil')shut();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')shut();});
+
+function mini(i,tot){const t=tot||i.qty,w=x=>t?(x/t*100).toFixed(2):0;
+  return `<div class="minibar">${i.pur>0?`<i class="p" style="width:${w(i.pur)}%"></i>`:''}${i.inp>0?`<i class="i" style="width:${w(i.inp)}%"></i>`:''}${i.packed>0?`<i class="k" style="width:${w(i.packed)}%"></i>`:''}</div>`;}
+
+function orderModal(id){
+  const o=DATA.orders.find(x=>x.id===id); if(!o) return;
+  const items=o.items.slice().sort((a,b)=>(b.qty-b.packed)-(a.qty-a.packed)||b.qty-a.qty);
+  const due=o.ddate?new Date(o.ddate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'no date';
+  openModal(o.id,`${o.cust} · ${o.kind} · due ${due} · ${o.r.lab} · ${items.length} items`,
+    `<div class="mstat">
+      <div><div class="k">To produce</div><div class="v">${fmt(o.qty)}</div></div>
+      <div><div class="k">At purchase</div><div class="v p">${fmt(o.pur)}</div></div>
+      <div><div class="k">In production</div><div class="v i">${fmt(o.inp)}</div></div>
+      <div><div class="k">Packed</div><div class="v k">${fmt(o.packed)}</div></div>
+      <div><div class="k">Not started</div><div class="v">${fmt(o.none)}</div></div>
+      <div><div class="k">Complete</div><div class="v">${Math.round(o.pc*100)}%</div></div>
+    </div>
+    <table><thead><tr><th>Item</th><th>Description</th><th>Family</th><th>Stages</th>
+      <th style="text-align:right">Qty</th><th style="text-align:right">Purchase</th>
+      <th style="text-align:right">Production</th><th style="text-align:right">Packed</th>
+      <th style="text-align:right">To pack</th></tr></thead><tbody>
+      ${items.map(i=>`<tr><td class="code">${i.code}</td>
+        <td>${i.desc}${i.also?`<span class="chip">also ${i.also}</span>`:''}</td>
+        <td>${i.cat}</td><td style="width:104px">${mini(i)}</td>
+        <td class="n">${fmt(i.qty)}</td>
+        <td class="n" style="color:var(--purchase)">${i.pur?fmt(i.pur):'—'}</td>
+        <td class="n" style="color:var(--inprod)">${i.inp?fmt(i.inp):'—'}</td>
+        <td class="n" style="color:var(--packed)">${i.packed?fmt(i.packed):'—'}</td>
+        <td class="n"><b>${fmt(i.qty-i.packed)}</b></td></tr>`).join('')}
+    </tbody></table>`);
+}
+
+function familyModal(){
+  const fam={};
+  LIVE.forEach(o=>o.items.forEach(i=>{
+    const f=fam[i.cat]||(fam[i.cat]={qty:0,pur:0,inp:0,packed:0,none:0,c:new Set()});
+    f.qty+=i.qty;f.pur+=i.pur;f.inp+=i.inp;f.packed+=i.packed;f.none+=i.none;
+    if(i.qty-i.packed>0) f.c.add(o.cust);}));
+  const fl=Object.entries(fam).map(([k,v])=>({name:k,...v,bal:v.qty-v.packed}))
+    .filter(f=>f.bal>0).sort((a,b)=>b.bal-a.bal);
+  const tot=fl.reduce((s,f)=>s+f.bal,0);
+  openModal('Pieces still to produce',fmt(tot)+' pieces across '+fl.length+' families · live orders only',
+    `<table><thead><tr><th>Family</th><th>Stages</th><th style="text-align:right">Total</th>
+      <th style="text-align:right">Purchase</th><th style="text-align:right">Production</th>
+      <th style="text-align:right">Packed</th><th style="text-align:right">Not started</th>
+      <th style="text-align:right">To produce</th><th style="text-align:right">Share</th>
+      <th>Customers</th></tr></thead><tbody>
+      ${fl.map(f=>`<tr><td><b>${f.name}</b></td><td style="width:130px">${mini(f,f.qty)}</td>
+        <td class="n">${fmt(f.qty)}</td>
+        <td class="n" style="color:var(--purchase)">${f.pur?fmt(f.pur):'—'}</td>
+        <td class="n" style="color:var(--inprod)">${f.inp?fmt(f.inp):'—'}</td>
+        <td class="n" style="color:var(--packed)">${f.packed?fmt(f.packed):'—'}</td>
+        <td class="n">${f.none?fmt(f.none):'—'}</td>
+        <td class="n"><b>${fmt(f.bal)}</b></td>
+        <td class="n">${tot?Math.round(f.bal/tot*100):0}%</td>
+        <td>${[...f.c].join(', ')}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="7"><b>TOTAL</b></td><td class="n"><b>${fmt(tot)}</b></td>
+      <td class="n">100%</td><td></td></tr></tfoot></table>`);
+}
+
+function stageModal(which){
+  const key=which==='inprod'?'inp':'pur';
+  const out=[];
+  LIVE.forEach(o=>o.items.forEach(i=>{
+    const v=which==='inprod'?i.inp:(i.pur+i.none);
+    if(v>0) out.push({...i,v,order:o.id,cust:o.cust,ddate:o.ddate});}));
+  out.sort((a,b)=>b.v-a.v);
+  const tot=out.reduce((s,i)=>s+i.v,0);
+  const fam={};
+  out.forEach(i=>fam[i.cat]=(fam[i.cat]||0)+i.v);
+  const fl=Object.entries(fam).sort((a,b)=>b[1]-a[1]);
+  openModal(which==='inprod'?'Pieces in production':'Pieces idle at purchase',
+    fmt(tot)+' pieces · '+out.length+' item lines · '+fl.length+' families',
+    `<div class="mstat">${fl.slice(0,6).map(([k,v])=>
+      `<div><div class="k">${k}</div><div class="v ${which==='inprod'?'i':'p'}">${fmt(v)}</div></div>`).join('')}</div>
+     <table><thead><tr><th>Item</th><th>Description</th><th>Family</th><th>Order</th><th>Customer</th>
+       <th style="text-align:right">Qty here</th><th style="text-align:right">Order qty</th>
+       <th style="text-align:right">Due</th></tr></thead><tbody>
+       ${out.slice(0,60).map(i=>`<tr><td class="code">${i.code}</td><td>${i.desc}</td><td>${i.cat}</td>
+         <td class="code">${i.order}</td><td>${i.cust}</td>
+         <td class="n"><b>${fmt(i.v)}</b></td><td class="n">${fmt(i.qty)}</td>
+         <td class="n">${i.ddate?new Date(i.ddate).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'—'}</td>
+       </tr>`).join('')}</tbody></table>
+     ${out.length>60?`<p style="color:var(--dim);font-size:12px;margin-top:10px">Showing the 60 largest of ${out.length} lines.</p>`:''}`);
+}
+
+document.addEventListener('click',e=>{
+  const c=e.target.closest('.card[data-order]'); if(c){orderModal(c.dataset.order);return;}
+  const cc=e.target.closest('.ccard[data-cplaint]'); if(cc){complaintModal(cc.dataset.cplaint);return;}
+  const s=e.target.closest('.stat[data-modal]');
+  if(s){const m=s.dataset.modal;
+    if(m==='family') familyModal(); else stageModal(m==='inprod'?'inprod':'idle');}
+});
+
+/* ---------------- export ---------------- */
+$('#export').onclick=()=>{
+  const h=jget(HKEY)||{};
+  const lines=['date,order,item,qty,at_purchase,in_production,packed'];
+  Object.keys(h).sort().forEach(day=>{
+    const s=h[day].s;
+    for(const k in s){const [p,i,kk,q]=s[k];const [o,c]=k.split('|');
+      lines.push([day,o,c,q,p,i,kk].join(','));}
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='phf-stage-history-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+
+/* ---------------- getting the workbooks ----------------
+   Route 1: the published .xlsx — one request, whole workbook.
+   Route 2: Google's CSV feed, one tab at a time, assembled into a
+            workbook so every parser below carries on unchanged.
+   Route 3: a copy of the file sitting next to this page.
+   ------------------------------------------------------- */
+const bust=u=>u+(u.indexOf('?')<0?'?':'&')+'t='+Date.now();
+
+async function getXlsx(url){
+  const r=await fetch(bust(url),{cache:'no-store'});
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const b=await r.arrayBuffer();
+  if(b.byteLength<100) throw new Error('empty response');
+  return {wb:XLSX.read(new Uint8Array(b),{type:'array',cellDates:true}),sig:b.byteLength};
+}
+
+async function gvizTab(id,tab){
+  const u='https://docs.google.com/spreadsheets/d/'+id+
+          '/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(tab);
+  const r=await fetch(bust(u),{cache:'no-store'});
+  if(!r.ok) throw new Error('HTTP '+r.status+' on '+tab);
+  const txt=await r.text();
+  if(/^<!DOCTYPE|<html/i.test(txt.slice(0,60))) throw new Error('sheet is not shared publicly');
+  return XLSX.read(txt,{type:'string',cellDates:true,raw:false}).Sheets.Sheet1;
+}
+
+async function getViaCsv(id){
+  // the Orders tab lists the other tabs, so this keeps working as orders
+  // are added — nothing is hard-coded
+  const orders=await gvizTab(id,'Orders');
+  const g=XLSX.utils.sheet_to_json(orders,{header:1,blankrows:false});
+  const head=g[0].map(x=>String(x||'').trim()), ci=head.indexOf('Order No');
+  const names=[];
+  for(let i=1;i<g.length;i++){
+    const v=String((g[i]||[])[ci]||'').trim();
+    if(!v||v.toUpperCase()==='TOTAL') break;
+    names.push(v);
+  }
+  const Sheets={Orders:orders}, SheetNames=['Orders'];
+  const got=await Promise.all(names.concat(['Sampling','Targets'])
+    .map(n=>gvizTab(id,n).then(s=>[n,s]).catch(()=>null)));
+  got.forEach(x=>{ if(x){Sheets[x[0]]=x[1]; SheetNames.push(x[0]);} });
+  return {wb:{SheetNames,Sheets},sig:SheetNames.length+':'+JSON.stringify(g).length};
+}
+
+async function loadSource(src,allowCsv){
+  try{ const r=await getXlsx(src.xlsx); r.how='Google Sheets'; return r; }
+  catch(e1){
+    if(allowCsv){
+      try{ const r=await getViaCsv(src.id); r.how='Google Sheets (CSV feed)'; return r; }
+      catch(e2){ /* fall through */ }
+    }
+    try{ const r=await getXlsx(src.local); r.how='local file'; return r; }
+    catch(e3){ throw new Error(e1.message); }
+  }
+}
+
+/* ---------------- loading ---------------- */
+let lastFail='';
+async function pollComplaints(force){
+  if(typeof XLSX==='undefined') return;
+  try{
+    const r=await loadSource(SRC.complaints,false);
+    if(!force&&cMod&&r.sig===cMod) return;
+    COMPLAINTS=parseComplaints(r.wb); cMod=r.sig;
+  }catch(e){ /* optional — the board works without it */ }
+}
+async function poll(force){
+  if(typeof XLSX==='undefined') return false;
+  await pollComplaints(force);
+  try{
+    const r=await loadSource(SRC.tracker,true);
+    lastCheck=Date.now(); route=r.how;
+    if(!force&&lastMod&&r.sig===lastMod){ if(DATA) render(DATA); return true; }
+    const d=parse(r.wb,Date.now());
+    lastMod=r.sig; auto=true; jset(KEY,d); snapshot(d); render(d);
+    return true;
+  }catch(e){ lastFail=e.message; return false; }
+}
+function fail(msg){$('#dh').textContent='Drop the workbook here';$('#dp').innerHTML=msg;
+  $('#drop').classList.remove('hide'); if(!DATA) $('#board').classList.add('hide');}
+function readFile(f){
+  if(typeof XLSX==='undefined'){fail('The spreadsheet reader did not load. Make sure <b>xlsx.full.min.js</b> is in this folder.');return;}
+  const fr=new FileReader();
+  fr.onload=e=>{try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+      const d=parse(wb,f.lastModified||Date.now()); auto=false; jset(KEY,d); snapshot(d); render(d);
+    }catch(ex){fail('That file could not be read.');
+      $('#err').textContent=ex.message;$('#err').classList.remove('hide');}};
+  fr.readAsArrayBuffer(f);
+}
+$('#pick').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{
+  for(const f of e.target.files){
+    if(/complaint/i.test(f.name)){
+      const fr=new FileReader();
+      fr.onload=ev=>{try{
+        COMPLAINTS=parseComplaints(XLSX.read(new Uint8Array(ev.target.result),
+          {type:'array',cellDates:true}));
+        if(DATA) render(DATA);
+      }catch(x){}};
+      fr.readAsArrayBuffer(f);
+    } else readFile(f);
+  }
+};
+$('#reload').onclick=async()=>{if(!await poll(true)) $('#file').click();};
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{
+  e.preventDefault();$('#drop').classList.remove('hide');$('#drop').classList.add('over');}));
+document.addEventListener('dragleave',e=>{e.preventDefault();$('#drop').classList.remove('over');
+  if(DATA&&e.relatedTarget)$('#drop').classList.add('hide');});
+document.addEventListener('drop',e=>{e.preventDefault();$('#drop').classList.remove('over');
+  const f=e.dataTransfer.files[0]; if(f) readFile(f); else if(DATA)$('#drop').classList.add('hide');});
+
+/* ---------------- installable app ---------------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* http:// on the LAN — fine, just no offline */ });
+  });
+}
+let installPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault(); installPrompt=e; $('#install').classList.remove('hide');
+});
+$('#install').onclick=async()=>{
+  if(!installPrompt) return;
+  installPrompt.prompt(); await installPrompt.userChoice;
+  installPrompt=null; $('#install').classList.add('hide');
+};
+window.addEventListener('appinstalled',()=>$('#install').classList.add('hide'));
+
+(async()=>{
+  const c=jget(KEY); if(c&&c.orders) render(c);
+  if(await poll(true)) setInterval(poll,POLL);
+  else fail((c?'Showing the last figures this device saw. ':'')+
+      'Could not reach the Google Sheet.<br><br><span style="color:var(--overdue)">'+
+      (lastFail||'no details')+'</span><br><br>'+
+      'Check the sheet is still published: File &rarr; Share &rarr; Publish to web.');
+  setInterval(()=>{if(DATA) render(DATA)},36e5);
+})();
+</script>
+</body>
+</html>
