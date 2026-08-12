@@ -175,10 +175,7 @@ td b{color:var(--ink)}
 
 #veil{position:fixed;inset:0;background:rgba(3,5,8,.84);z-index:50;display:flex;align-items:flex-start;
   justify-content:center;padding:36px 20px;overflow:auto}
-#veil#crash{background:#2A0A12;border:1px solid #FF2E63;color:#FFD9E2;padding:16px 18px;
-  margin-bottom:16px;font-size:13px;line-height:1.6;
-  font-family:"IBM Plex Mono","Consolas",monospace;word-break:break-word}
-#crash b{color:#FF6B92}
+#veil.hide{display:none!important}
 .hide{display:none!important}
 
 /* ---------------- phones and small tablets ---------------- */
@@ -255,6 +252,45 @@ td b{color:var(--ink)}
 .minibar i.p{background:var(--purchase)}.minibar i.i{background:var(--inprod)}.minibar i.k{background:var(--packed)}
 
 
+.pin{position:absolute;right:11px;top:10px;width:22px;height:22px;padding:0;
+  border:1px solid var(--line);background:transparent;color:var(--dim);
+  font-size:9px;line-height:1;border-radius:50%;cursor:pointer}
+.pin:hover{color:var(--ontrack);border-color:var(--ontrack)}
+.pin.on{color:var(--void);background:var(--ontrack);border-color:var(--ontrack);
+  box-shadow:0 0 12px rgba(43,255,176,.55)}
+.card.pinned{border-color:rgba(43,255,176,.4)}
+
+/* ---------------- shipping timeline ---------------- */
+.tl{background:var(--panel);border:1px solid var(--line);padding:16px 18px 12px;overflow-x:auto}
+.tl svg{display:block;width:100%;height:auto;min-width:0}
+@media (max-width:760px){ .tl{padding:12px 8px 8px;overflow-x:visible} }
+@keyframes sweep{0%{transform:translateX(-140%)}100%{transform:translateX(520%)}}
+@keyframes capglow{0%,100%{opacity:.55}50%{opacity:1}}
+@keyframes edgepulse{0%,100%{opacity:.25}50%{opacity:.7}}
+.tl .sweep{animation:sweep 3.6s cubic-bezier(.5,0,.5,1) infinite}
+.tl .cap{animation:capglow 2.2s ease-in-out infinite}
+.tl .cap.urgent{animation-duration:1s}
+.tl .edge{animation:edgepulse 2.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .tl .sweep,.tl .cap,.tl .edge{animation:none}
+  .tl .sweep{opacity:0}
+}
+.tl .lane{fill:var(--panel2)}
+.tl .grid{stroke:var(--line);stroke-width:1}
+.tl .gridtxt{fill:var(--dim);font-size:10px;letter-spacing:.16em;
+  font-family:"IBM Plex Mono","Consolas",monospace;text-transform:uppercase}
+.tl .oid{fill:var(--ink);font-size:12px;font-weight:600;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.tl .sub{fill:var(--dim);font-size:10px;font-family:"IBM Plex Mono","Consolas",monospace}
+.tl .qty{fill:var(--ink);font-size:10.5px;font-weight:600;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.tl .now{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3}
+.tl .nowtxt{fill:var(--ink);font-size:9px;font-weight:700;letter-spacing:.18em;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.tl .bar{rx:3;transition:opacity .2s}
+.tl .row:hover .bar{opacity:.82}
+.tl .cap{fill:none;stroke-width:2;rx:3}
+.tl .ship{filter:url(#glow)}
 .cplaint{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:12px}
 .ccard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--overdue);
   padding:11px 13px;cursor:pointer}
@@ -375,6 +411,7 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
     <div class="src hide" id="srcbox">
       <span class="dot" id="dot"></span><span id="srctext"></span>
       <span id="checktext" style="color:var(--dim)"></span>
+      <button id="report">Daily report</button>
       <button id="install" class="hide">Install app</button>
       <button id="reload">Refresh now</button>
       <button id="export">Export history</button>
@@ -404,8 +441,16 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
 <main id="board" class="hide">
   <div class="strip" id="strip"></div>
 
+  <section id="tlwrap">
+    <div class="shead"><h2>Shipping timeline</h2><span id="tlnote"></span></div>
+    <div class="tl" id="timeline"></div>
+  </section>
+
   <section>
-    <div class="shead"><h2>Orders</h2><span id="ordnote"></span></div>
+    <div class="shead"><h2>Orders</h2><span id="ordnote"></span>
+      <span id="pinnote" style="color:var(--ontrack)"></span>
+      <button id="pinreset" class="hide" style="margin-left:auto">Reset order</button>
+    </div>
     <div class="legend">
       <span><i class="sw p"></i>At purchase</span>
       <span><i class="sw i"></i>In production</span>
@@ -467,7 +512,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v10 · 8 Aug 2026';
+const VERSION='v14 · 12 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -485,7 +530,10 @@ const SRC={
     name:'Complaint record',
     xlsx:'https://docs.google.com/spreadsheets/d/e/2PACX-1vQYldzjNk6E8h5bAeN1tKKGzPSLyOtQkwcSAUS3ZGO4PJMfWzPWqrQeh7NcijKCKxILQicoHghAmks7/pub?output=xlsx',
     id:'1j10VLlSvmXfXsCSX13uhylORyHSt8lYI3-77_-qZWk8',
-    local:'CustomerComplaintRecord.xlsx'
+    local:'CustomerComplaintRecord.xlsx',
+    // complaint tabs are matched to customer codes automatically; add any
+    // extra tab names here that are not a customer code on the Orders sheet
+    extraTabs:['PMA']
   }
 };
 const POLL=10*60*1000;
@@ -495,6 +543,23 @@ const $=s=>document.querySelector(s);
 const fmt=n=>Math.round(n).toLocaleString('en-US');
 const DAY=864e5;
 let DATA=null,LIVE=[],lastMod=null,auto=false,lastCheck=Date.now();
+const PINKEY='phf_pins_v1';
+let PINS=[];
+function loadPins(){ const p=jget(PINKEY); PINS=Array.isArray(p)?p:[]; }
+function savePins(){ jset(PINKEY,PINS); }
+function togglePin(id){
+  const i=PINS.indexOf(id);
+  if(i<0) PINS.push(id); else PINS.splice(i,1);
+  savePins(); if(DATA) render(DATA);
+}
+function pinRank(id){ const i=PINS.indexOf(id); return i<0?9999:i; }
+function applyPins(list){
+  return list.slice().sort(function(a,b){
+    const pa=pinRank(a.id), pb=pinRank(b.id);
+    if(pa!==pb) return pa-pb;
+    return 0;                       // otherwise keep the order already worked out
+  });
+}
 let COMPLAINTS=null,cMod=null;
 
 function tick(){const d=new Date();
@@ -655,8 +720,9 @@ function render(d){
   const O=d.orders.map(o=>{o.odate=o.odate?new Date(o.odate):null;
     o.ddate=o.ddate?new Date(o.ddate):null; o.r=risk(o,today); return o;});
   O.sort((a,b)=>rank[a.r.k]-rank[b.r.k]||(a.ddate&&b.ddate?a.ddate-b.ddate:0)||b.bal-a.bal);
-  LIVE=O.filter(o=>o.r.k!=='done');
-  const hot=O.filter(o=>o.r.k==='overdue'||o.r.k==='behind');
+  const ORDERED=applyPins(O);
+  LIVE=ORDERED.filter(o=>o.r.k!=='done');
+  const hot=ORDERED.filter(o=>o.r.k==='overdue'||o.r.k==='behind');
   const tq=O.reduce((s,o)=>s+o.qty,0), tp=O.reduce((s,o)=>s+o.packed,0);
   const idleQ=LIVE.reduce((s,o)=>s+o.pur+o.none,0), inpQ=LIVE.reduce((s,o)=>s+o.inp,0);
   const soon=LIVE.filter(o=>o.r.left!=null&&o.r.left<=30).length;
@@ -692,7 +758,7 @@ function render(d){
   } else $('#sampwrap').classList.add('hide');
 
   $('#ordnote').textContent=hot.length?hot.length+' need attention — shown first':'all orders keeping pace';
-  $('#orders').innerHTML=O.map(o=>{
+  $('#orders').innerHTML=ORDERED.map(o=>{
     const pc=Math.round(o.pc*100), ex=Math.round(o.r.exp*100), g=Math.round(o.r.gap*100);
     const due=o.ddate?o.ddate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'no date';
     const left=o.r.left!=null?(o.r.left<0?Math.abs(o.r.left)+' days late':o.r.left+' days left')
@@ -701,7 +767,7 @@ function render(d){
       (g<0?`<span class="gap neg">${g} pts behind pace</span>`:`<span class="gap pos">+${g} pts ahead</span>`);
     const seg=(w,c)=>w>0?`<i class="${c}" style="width:${(w/o.qty*100).toFixed(2)}%"></i>`:'';
     const stCls={purchase:'st-purchase',inprod:'st-inprod',packed:'st-packed',none:'st-none'}[o.stage];
-    return `<article class="card ${o.r.k}" data-order="${o.id}">
+    return `<article class="card ${o.r.k}${PINS.indexOf(o.id)<0?'':' pinned'}" data-order="${o.id}">
       <div class="crow">
         <div><span class="oid">${o.id}</span> <span class="cust">${o.cust}</span></div>
         <span class="flag f-${o.r.k==='ongoing'?'ongoing':o.r.k}">${o.r.lab}</span>
@@ -725,7 +791,12 @@ function render(d){
       </div>
       ${o.note?`<div class="cfoot" style="margin-top:6px"><span class="note">! ${o.note}</span></div>`:''}
       <div class="more">ITEMS &#9656;</div>
+      <button class="pin${PINS.indexOf(o.id)<0?'':' on'}" data-pin="${o.id}"
+        title="${PINS.indexOf(o.id)<0?'Pin to the top of the list':'Unpin'}"
+        aria-label="${PINS.indexOf(o.id)<0?'Pin':'Unpin'} ${o.id}">&#9679;</button>
     </article>`;}).join('');
+  $('#pinreset').className=PINS.length?'':'hide';
+  $('#pinnote').textContent=PINS.length?PINS.length+' pinned':'';
 
   // families
   const fam={};
@@ -745,6 +816,7 @@ function render(d){
       <div class="pc">${f.qty?Math.round(f.packed/f.qty*100):0}%</div>
     </div>`;}).join('')||'<div class="famrow"><div class="nm">Nothing outstanding.</div></div>';
 
+  renderTimeline();
   renderCharts();
   renderCapacity();
   renderComplaints();
@@ -794,10 +866,21 @@ function dmy(v){
   const d=new Date(s); return isNaN(d)?null:d;
 }
 function parseComplaints(wb){
-  const out=[];
+  const out=[], seen={};
   for(const name of wb.SheetNames){
     if(/template/i.test(name)) continue;
     const g=grid(wb.Sheets[name]);
+    /* Asking Google for a tab that does not exist returns the FIRST tab
+       instead of an error, so the same sheet can arrive many times over.
+       Take the customer from the sheet's own title line where there is one,
+       and drop anything already counted. */
+    let owner='';
+    for(let i=0;i<Math.min(g.length,6);i++){
+      const line=(g[i]||[]).map(c=>String(c||'')).join(' ');
+      const m=line.match(/complaint\s+record\s*[:\-]\s*([A-Za-z0-9 _-]+)/i);
+      if(m){ owner=m[1].trim(); break; }
+    }
+    const cust=owner||name.trim();
     let hr=-1;
     for(let i=0;i<Math.min(g.length,12);i++){
       if(g[i]&&g[i].some(c=>String(c||'').trim().toLowerCase()==='complaint')){hr=i;break;}
@@ -811,7 +894,10 @@ function parseComplaints(wb){
       const no=String(r[col('comp no')]||'').trim();
       if(!text&&!no) continue;
       const st=String(r[col('status')]||'Open').trim()||'Open';
-      out.push({cust:name.trim(),no,date:dmy(r[col('date')]),
+      const key=cust+'|'+no+'|'+text+'|'+String(r[col('item no')]||'');
+      if(seen[key]) continue;
+      seen[key]=1;
+      out.push({cust:cust,no,date:dmy(r[col('date')]),
         item:String(r[col('item no')]||'').trim(),
         lot:String(r[col('lot no')]||'').trim(),
         inv:String(r[col('inv no')]||'').trim(),
@@ -869,6 +955,130 @@ function complaintModal(cust){
         <td>${c.text}</td><td>${c.dept||'—'}</td><td>${c.action||'—'}</td>
         <td style="color:${c.open?'var(--overdue)':'var(--ontrack)'}">${c.status}</td></tr>`).join('')}
     </tbody></table>`);
+}
+
+/* ---------------- shipping timeline ----------------
+   One lane per order. The bar runs from today (or the order date) to its
+   delivery date, so its LENGTH is the time left and its COLOUR is how close
+   that deadline is — cool at the start, hot at the end. ------------------ */
+function renderTimeline(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const horizon=new Date(today); horizon.setMonth(horizon.getMonth()+3);
+
+  const live=applyPins(LIVE.filter(o=>o.ddate&&o.bal>0)
+    .filter(o=>new Date(o.ddate)<=horizon)
+    .sort((a,b)=>new Date(a.ddate)-new Date(b.ddate)));
+  if(!live.length){
+    $('#tlnote').textContent='nothing due in the next three months';
+    $('#timeline').innerHTML='<div style="color:var(--dim);font-size:13px;padding:14px 0">'+
+      'No dated orders fall inside the next three months.</div>';
+    return;
+  }
+  // scale: start of this month to the end of the third month ahead
+  const t0=new Date(today.getFullYear(),today.getMonth(),1);
+  const t1=new Date(today.getFullYear(),today.getMonth()+4,0);
+  const span=t1-t0;
+
+  /* draw at the real width of the box on screen, so one unit is one pixel
+     and nothing gets shrunk to fit */
+  const box=$('#timeline');
+  const avail=Math.max(280,(box.clientWidth||box.getBoundingClientRect().width||
+                            (window.innerWidth||1200)-56)-2);
+  const narrow=avail<700;
+  const L=narrow?104:176, R=narrow?50:88, ROW=narrow?36:30;
+  const TOP=34, H=TOP+live.length*ROW+16;
+  const W=Math.round(avail), PW=W-L-R;
+  const x=d=>L+Math.max(0,Math.min(1,(new Date(d)-t0)/span))*PW;
+
+  // month gridlines
+  let grid='',m=new Date(t0);
+  while(m<t1){
+    const gx=x(m);
+    const next=new Date(m.getFullYear(),m.getMonth()+1,1);
+    grid+=`<line class="grid" x1="${gx.toFixed(1)}" y1="${TOP-14}" x2="${gx.toFixed(1)}" y2="${H-10}"/>`+
+      `<text class="gridtxt" x="${(gx+8).toFixed(1)}" y="${TOP-20}">`+
+      m.toLocaleDateString('en-GB',{month:'short'}).toUpperCase()+
+      (m.getMonth()===0||m.getTime()===t0.getTime()?" '"+String(m.getFullYear()).slice(2):'')+`</text>`;
+    m=next;
+  }
+  const nx=x(today);
+
+  const rows=live.map((o,i)=>{
+    const y=TOP+i*ROW;
+    const dd=new Date(o.ddate), od=o.odate?new Date(o.odate):null;
+    const start=Math.max(x(od&&od>t0?od:t0), L);
+    const end=x(dd);
+    const bx=Math.min(start,end-6), bw=Math.max(6,end-Math.min(start,end-6));
+    const days=Math.round((dd-today)/DAY);
+    const late=days<0;
+    const gid='g'+i;
+    const pct=Math.round(o.pc*100);
+    return {o,y,bx,bw,end,days,late,gid,pct,
+      dd:dd.toLocaleDateString('en-GB',{day:'numeric',month:'short'})};
+  });
+
+  /* Every bar starts in the board's own blue-to-violet process colours and
+     ends in the urgency colour used everywhere else, so the timeline reads
+     as part of the same board rather than a separate chart. */
+  const END={ontrack:'#2BFFB0',watch:'#FFD429',behind:'#FF7A1A',overdue:'#FF2E63'};
+  const defs=rows.map(r=>{
+    const k=r.late?'overdue':(r.days<=14?'behind':(r.days<=45?'watch':'ontrack'));
+    const end=END[k];
+    return `<linearGradient id="${r.gid}" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"  stop-color="#2A9BFF" stop-opacity=".85"/>
+      <stop offset="45%" stop-color="#C77DFF" stop-opacity=".9"/>
+      <stop offset="100%" stop-color="${end}"/>
+    </linearGradient>
+    <linearGradient id="s${r.gid}" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#FFFFFF" stop-opacity=".38"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>`;
+  }).join('');
+
+  $('#tlnote').textContent=live.length+' orders due before '+
+    t1.toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"
+      preserveAspectRatio="xMinYMin meet"
+      role="img" aria-label="Shipping timeline for the next three months">
+    <defs>${defs}
+      <linearGradient id="nowglow" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#DCE9F2" stop-opacity="0"/>
+        <stop offset="50%" stop-color="#DCE9F2" stop-opacity=".22"/>
+        <stop offset="100%" stop-color="#DCE9F2" stop-opacity="0"/>
+      </linearGradient>
+      <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="3.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    ${grid}
+    ${rows.map(r=>`<g class="row">
+      <rect class="lane" x="${L}" y="${(r.y+4).toFixed(1)}" width="${PW}" height="15" rx="3"/>
+      <text class="oid" x="0" y="${(r.y+13).toFixed(1)}">${narrow?r.o.id.replace(/^([A-Z0-9]+)-\d\d-/,'$1-'):r.o.id}</text>
+      <text class="sub" x="0" y="${(r.y+24).toFixed(1)}">${narrow?fmt(r.o.bal)+' left':r.o.cust+' · '+fmt(r.o.bal)+' left · '+r.pct+'% packed'}</text>
+      <clipPath id="c${r.gid}"><rect x="${r.bx.toFixed(1)}" y="${(r.y+4).toFixed(1)}"
+        width="${r.bw.toFixed(1)}" height="15" rx="3"/></clipPath>
+      <rect class="bar" x="${r.bx.toFixed(1)}" y="${(r.y+4).toFixed(1)}"
+            width="${r.bw.toFixed(1)}" height="15" fill="url(#${r.gid})">
+        <title>${r.o.id} — ${r.o.cust} — ship ${r.dd} — ${r.late?Math.abs(r.days)+' days late':r.days+' days left'} — ${fmt(r.o.bal)} pieces to pack</title>
+      </rect>
+      <g clip-path="url(#c${r.gid})"><rect class="sweep"
+        x="${r.bx.toFixed(1)}" y="${(r.y+4).toFixed(1)}"
+        width="${Math.max(26,r.bw*0.22).toFixed(1)}" height="15"
+        fill="url(#s${r.gid})" style="animation-delay:${((r.y%7)*0.28).toFixed(2)}s"/></g>
+      <rect class="ship cap${r.days<=14?' urgent':''}" x="${(r.end-2.5).toFixed(1)}"
+            y="${(r.y+1).toFixed(1)}" width="3" height="21"
+            rx="1.5" fill="${r.late?'#FF2E63':(r.days<=14?'#FF7A1A':'#FFD429')}"/>
+      <text class="qty" x="${W-R+8}" y="${(r.y+13).toFixed(1)}">${narrow?r.dd.replace(/\s/,''):r.dd}</text>
+      <text class="sub" x="${W-R+8}" y="${(r.y+24).toFixed(1)}">${r.late?Math.abs(r.days)+'d late':r.days+'d'}</text>
+    </g>`).join('')}
+    <rect class="edge" x="${(nx-9).toFixed(1)}" y="${TOP-14}" width="18" height="${H-TOP+4}"
+          fill="url(#nowglow)"/>
+    <line class="now" x1="${nx.toFixed(1)}" y1="${TOP-14}" x2="${nx.toFixed(1)}" y2="${H-10}"/>
+    <text class="nowtxt" x="${(nx+6).toFixed(1)}" y="${H-1}">TODAY</text>
+  </svg>`;
 }
 
 /* ---------------- charts ---------------- */
@@ -968,6 +1178,151 @@ function renderCapacity(){
       <td class="n rate"><b>${fmt(rate)}</b></td><td class="n">100%</td></tr></tfoot></table>`;
 }
 
+/* ---------------- daily report ----------------
+   Production only — no sampling, no complaints. Written to be pasted
+   straight into a message to the production manager. ------------------- */
+function dailyReport(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const dstr=today.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const dated=LIVE.filter(o=>o.ddate);
+  const within=n=>dated.filter(o=>{const d=Math.round((new Date(o.ddate)-today)/DAY);return d>=0&&d<=n;});
+  const late=dated.filter(o=>new Date(o.ddate)<today);
+  const risk=LIVE.filter(o=>o.r.k==='overdue'||o.r.k==='behind');
+  const bal=LIVE.reduce((s,o)=>s+o.bal,0);
+
+  // capacity, using the target on the Targets sheet
+  let capLine='';
+  if(DATA.target&&DATA.target.date){
+    const end=new Date(DATA.target.date);
+    if(end>=today){
+      const days=workingDays(today,end,DATA.target.week,DATA.target.hol);
+      capLine='To finish everything by '+end.toLocaleDateString('en-GB',{day:'numeric',month:'long'})+
+        ' we need '+fmt(Math.ceil(bal/days))+' pieces packed per working day ('+days+' days left).';
+    }
+  }
+
+  // by customer
+  const cust={};
+  LIVE.forEach(o=>{
+    const c=cust[o.cust]||(cust[o.cust]={orders:0,bal:0,pur:0,inp:0,due:null,risk:0});
+    c.orders++; c.bal+=o.bal; c.pur+=o.pur+o.none; c.inp+=o.inp;
+    if(o.r.k==='overdue'||o.r.k==='behind') c.risk++;
+    if(o.ddate&&(!c.due||new Date(o.ddate)<c.due)) c.due=new Date(o.ddate);
+  });
+  const custRows=Object.entries(cust).map(([k,v])=>Object.assign({cust:k},v))
+    .sort((a,b)=>b.bal-a.bal);
+
+  // items holding up the most urgent orders
+  const urgent=dated.slice().sort((a,b)=>new Date(a.ddate)-new Date(b.ddate)).slice(0,6);
+  const blockers=[];
+  urgent.forEach(o=>o.items.forEach(i=>{
+    const b=i.qty-i.packed;
+    if(b>0) blockers.push({order:o.id,cust:o.cust,code:i.code,desc:i.desc,cat:i.cat,bal:b,
+      stage:i.inp>0?'in production':(i.pur>0?'at purchase':'not started'),
+      due:o.ddate});
+  }));
+  blockers.sort((a,b)=>b.bal-a.bal);
+
+  // items that have not moved, from the stored history
+  const fs=flowStats(DATA);
+  const stuck=fs.idle.filter(i=>i.days!=null&&i.days>=3).slice(0,10);
+
+  // families
+  const fam={};
+  LIVE.forEach(o=>o.items.forEach(i=>{const b=i.qty-i.packed;
+    if(b>0) fam[i.cat]=(fam[i.cat]||0)+b;}));
+  const famRows=Object.entries(fam).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+  const L=[];
+  L.push('PRODUCTION PLAN — '+dstr);
+  L.push('');
+  L.push('WHERE WE STAND');
+  L.push('  Live orders: '+LIVE.length+'   Pieces still to pack: '+fmt(bal));
+  L.push('  At purchase '+fmt(LIVE.reduce((s,o)=>s+o.pur+o.none,0))+
+         '   In production '+fmt(LIVE.reduce((s,o)=>s+o.inp,0))+
+         '   Packed '+fmt(LIVE.reduce((s,o)=>s+o.packed,0)));
+  if(capLine) L.push('  '+capLine);
+  L.push('');
+  L.push('NEEDS ATTENTION TODAY ('+risk.length+')');
+  if(!risk.length) L.push('  Nothing behind pace.');
+  risk.forEach(o=>{
+    const d=o.ddate?Math.round((new Date(o.ddate)-today)/DAY):null;
+    L.push('  '+o.id+' ('+o.cust+') — '+(d==null?'no date':(d<0?Math.abs(d)+' days LATE':d+' days left'))+
+      ' — '+fmt(o.bal)+' to pack, '+Math.round(o.pc*100)+'% done'+
+      (o.inp===0&&o.packed===0?'  [not started]':''));
+  });
+  L.push('');
+  L.push('SHIPMENT TIMELINE');
+  L.push('  Overdue: '+late.length+'   Next 7 days: '+within(7).length+
+         '   Next 30: '+within(30).length+'   Next 90: '+within(90).length);
+  dated.slice().sort((a,b)=>new Date(a.ddate)-new Date(b.ddate)).slice(0,8).forEach(o=>{
+    const d=Math.round((new Date(o.ddate)-today)/DAY);
+    L.push('  '+new Date(o.ddate).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+
+      '  '+o.id+' ('+o.cust+')  '+fmt(o.bal)+' to pack  '+
+      (d<0?Math.abs(d)+'d late':d+'d'));
+  });
+  L.push('');
+  L.push('CUSTOMER FOLLOW-UPS');
+  custRows.forEach(c=>{
+    L.push('  '+c.cust+' — '+c.orders+' order'+(c.orders>1?'s':'')+', '+fmt(c.bal)+' to pack'+
+      (c.due?', first due '+c.due.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'')+
+      (c.risk?'  [' +c.risk+' behind]':''));
+  });
+  L.push('');
+  L.push('ITEMS HOLDING UP THE NEAREST ORDERS');
+  if(!blockers.length) L.push('  None.');
+  blockers.slice(0,12).forEach(b=>{
+    L.push('  '+b.code+'  '+fmt(b.bal)+' pcs  '+b.stage+'  — '+b.order+' ('+b.cust+') due '+
+      new Date(b.due).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+    L.push('      '+b.desc.slice(0,72));
+  });
+  L.push('');
+  L.push('STUCK — NO MOVEMENT RECORDED');
+  if(!stuck.length) L.push('  Nothing flagged yet (the board needs a few days of history).');
+  stuck.forEach(i=>{
+    L.push('  '+i.code+'  '+fmt(i.bal)+' pcs  '+i.stage.toLowerCase()+
+      '  unchanged '+i.days+' days  — '+i.order);
+  });
+  L.push('');
+  L.push('WORKLOAD BY FAMILY');
+  famRows.forEach(f=>L.push('  '+f[0]+' — '+fmt(f[1])+' to pack'));
+  L.push('');
+  L.push('Figures from the production board at '+
+    new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+'.');
+  return L.join('\n');
+}
+
+function showReport(){
+  const txt=dailyReport();
+  openModal('Daily production plan',
+    'production only · copy and send to the shop floor',
+    '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+
+    '<button id="copyrep">Copy</button><button id="dlrep">Download</button>'+
+    '<span style="color:var(--dim);font-size:12px;align-self:center" id="repmsg"></span></div>'+
+    '<pre id="reptext" style="white-space:pre-wrap;font-family:\'IBM Plex Mono\',Consolas,monospace;'+
+    'font-size:12.5px;line-height:1.65;color:var(--ink);background:var(--panel2);'+
+    'border:1px solid var(--line);padding:16px;margin:0;overflow-x:auto"></pre>');
+  $('#reptext').textContent=txt;
+  $('#copyrep').onclick=function(){
+    const done=function(){ $('#repmsg').textContent='copied'; };
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(done,function(){fallback();});
+    } else fallback();
+    function fallback(){
+      const ta=document.createElement('textarea'); ta.value=txt;
+      document.body.appendChild(ta); ta.select();
+      try{document.execCommand('copy'); done();}catch(e){$('#repmsg').textContent='select the text and copy';}
+      document.body.removeChild(ta);
+    }
+  };
+  $('#dlrep').onclick=function(){
+    const b=new Blob([txt],{type:'text/plain'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+    a.download='production-plan-'+new Date().toISOString().slice(0,10)+'.txt';
+    a.click(); URL.revokeObjectURL(a.href);
+  };
+}
+
 /* ---------------- drill-downs ---------------- */
 function openModal(t,s,b){$('#mtitle').textContent=t;$('#msub').textContent=s;
   $('#mbody').innerHTML=b;$('#veil').classList.remove('hide');$('#close').focus();}
@@ -1062,6 +1417,8 @@ function stageModal(which){
 }
 
 document.addEventListener('click',e=>{
+  const pin=e.target.closest('[data-pin]');
+  if(pin){ e.stopPropagation(); togglePin(pin.dataset.pin); return; }
   const c=e.target.closest('.card[data-order]'); if(c){orderModal(c.dataset.order);return;}
   const cc=e.target.closest('.ccard[data-cplaint]'); if(cc){complaintModal(cc.dataset.cplaint);return;}
   const s=e.target.closest('.stat[data-modal]');
@@ -1101,6 +1458,57 @@ async function getXlsx(url){
   return {wb:XLSX.read(new Uint8Array(b),{type:'array',cellDates:true}),sig:b.byteLength};
 }
 
+/* --- Route 3: JSONP. A <script> tag is never subject to CORS, so this works
+       even when fetch() is refused, including from a file:// page. --- */
+let jsonpN=0;
+function jsonp(url,ms){
+  return new Promise(function(res,rej){
+    const cb='phfcb'+(++jsonpN);
+    const s=document.createElement('script');
+    let done=false;
+    function cleanup(){
+      try{delete window[cb];}catch(e){window[cb]=undefined;}
+      if(s.parentNode) s.parentNode.removeChild(s);
+    }
+    const timer=setTimeout(function(){
+      if(done) return; done=true; cleanup(); rej(new Error('timed out'));},ms||12000);
+    window[cb]=function(data){
+      if(done) return; done=true; clearTimeout(timer); cleanup(); res(data);};
+    s.onerror=function(){
+      if(done) return; done=true; clearTimeout(timer); cleanup();
+      rej(new Error('script blocked'));};
+    s.src=url+(url.indexOf('?')<0?'?':'&')+'tqx=out:json;responseHandler:'+cb;
+    document.head.appendChild(s);
+  });
+}
+
+/* gviz returns dates as the literal string Date(y,m,d) — turn the payload
+   into rows of plain values so the normal parsers can read it. */
+function gvizToSheet(payload){
+  if(!payload||!payload.table) throw new Error('unexpected reply');
+  const t=payload.table;
+  const head=(t.cols||[]).map(function(c){return (c.label||'').trim()||c.id||'';});
+  const aoa=[head];
+  (t.rows||[]).forEach(function(r){
+    aoa.push((r.c||[]).map(function(cell){
+      if(!cell||cell.v===null||cell.v===undefined) return null;
+      let v=cell.v;
+      if(typeof v==='string'){
+        const m=v.match(/^Date\((\d+),(\d+),(\d+)/);
+        if(m) return new Date(+m[1],+m[2],+m[3]);
+      }
+      return v;
+    }));
+  });
+  return XLSX.utils.aoa_to_sheet(aoa,{cellDates:true});
+}
+
+async function gvizJsonpTab(id,tab){
+  const u='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?headers=1&sheet='+
+          encodeURIComponent(tab)+'&t='+Date.now();
+  return gvizToSheet(await jsonp(u));
+}
+
 async function gvizTab(id,tab){
   const u='https://docs.google.com/spreadsheets/d/'+id+
           '/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(tab);
@@ -1111,10 +1519,10 @@ async function gvizTab(id,tab){
   return XLSX.read(txt,{type:'string',cellDates:true,raw:false}).Sheets.Sheet1;
 }
 
-async function getViaCsv(id){
+async function getViaTabs(id,fetchTab){
   // the Orders tab lists the other tabs, so this keeps working as orders
   // are added — nothing is hard-coded
-  const orders=await gvizTab(id,'Orders');
+  const orders=await fetchTab(id,'Orders');
   const g=XLSX.utils.sheet_to_json(orders,{header:1,blankrows:false});
   const head=g[0].map(x=>String(x||'').trim()), ci=head.indexOf('Order No');
   const names=[];
@@ -1125,42 +1533,65 @@ async function getViaCsv(id){
   }
   const Sheets={Orders:orders}, SheetNames=['Orders'];
   const got=await Promise.all(names.concat(['Sampling','Targets'])
-    .map(n=>gvizTab(id,n).then(s=>[n,s]).catch(()=>null)));
+    .map(n=>fetchTab(id,n).then(s=>[n,s]).catch(()=>null)));
   got.forEach(x=>{ if(x){Sheets[x[0]]=x[1]; SheetNames.push(x[0]);} });
   return {wb:{SheetNames,Sheets},sig:SheetNames.length+':'+JSON.stringify(g).length};
 }
 
-async function loadSource(src,allowCsv){
-  try{ const r=await getXlsx(src.xlsx); r.how='Google Sheets'; return r; }
-  catch(e1){
-    if(allowCsv){
-      try{ const r=await getViaCsv(src.id); r.how='Google Sheets (CSV feed)'; return r; }
-      catch(e2){ /* fall through */ }
-    }
-    try{ const r=await getXlsx(src.local); r.how='local file'; return r; }
-    catch(e3){ throw new Error(e1.message); }
+let ATTEMPTS=[];
+async function tryRoute(name,fn){
+  try{ const r=await fn(); ATTEMPTS.push({name:name,ok:true}); r.how=name; return r; }
+  catch(e){ ATTEMPTS.push({name:name,ok:false,msg:e.message||String(e)}); throw e; }
+}
+async function getNamedTabs(id,fetchTab,names){
+  const got=await Promise.all(names.map(n=>fetchTab(id,n).then(s=>[n,s]).catch(()=>null)));
+  const Sheets={},SheetNames=[];
+  got.forEach(x=>{ if(x){Sheets[x[0]]=x[1]; SheetNames.push(x[0]);} });
+  if(!SheetNames.length) throw new Error('no matching tabs found');
+  return {wb:{SheetNames,Sheets},sig:SheetNames.join(',')};
+}
+async function loadSource(src,allowTabs,tabNames){
+  const routes=[['Google Sheets',()=>getXlsx(src.xlsx)]];
+  if(allowTabs){
+    routes.push(['Google Sheets (CSV feed)',()=>getViaTabs(src.id,gvizTab)]);
+    routes.push(['Google Sheets (JSONP)',()=>getViaTabs(src.id,gvizJsonpTab)]);
+  }else if(tabNames&&tabNames.length){
+    routes.push(['Google Sheets (CSV feed)',()=>getNamedTabs(src.id,gvizTab,tabNames)]);
+    routes.push(['Google Sheets (JSONP)',()=>getNamedTabs(src.id,gvizJsonpTab,tabNames)]);
   }
+  routes.push(['local file',()=>getXlsx(src.local)]);
+  let last=null;
+  for(const [name,fn] of routes){
+    try{ return await tryRoute(name,fn); }catch(e){ last=e; }
+  }
+  throw last||new Error('no route succeeded');
 }
 
 /* ---------------- loading ---------------- */
 let lastFail='';
-async function pollComplaints(force){
+async function pollComplaints(force,tabNames){
   if(typeof XLSX==='undefined') return;
   try{
-    const r=await loadSource(SRC.complaints,false);
+    const r=await loadSource(SRC.complaints,false,tabNames);
     if(!force&&cMod&&r.sig===cMod) return;
     COMPLAINTS=parseComplaints(r.wb); cMod=r.sig;
   }catch(e){ /* optional — the board works without it */ }
 }
 async function poll(force){
   if(typeof XLSX==='undefined') return false;
-  await pollComplaints(force);
+  ATTEMPTS=[];
   try{
     const r=await loadSource(SRC.tracker,true);
     lastCheck=Date.now(); route=r.how;
-    if(!force&&lastMod&&r.sig===lastMod){ if(DATA) render(DATA); return true; }
     const d=parse(r.wb,Date.now());
-    lastMod=r.sig; auto=true; jset(KEY,d); snapshot(d); render(d);
+    if(!force&&lastMod&&r.sig===lastMod){ if(DATA) render(DATA); }
+    else { lastMod=r.sig; auto=true; jset(KEY,d); snapshot(d); render(d); }
+    // complaint tabs are named by customer code, which the tracker just told us.
+    // Not awaited: the board is already on screen, complaints fill in when ready.
+    const codes=[];
+    d.orders.forEach(function(o){ if(o.cust&&codes.indexOf(o.cust)<0) codes.push(o.cust); });
+    pollComplaints(force,codes.concat(SRC.complaints.extraTabs||[]))
+      .then(function(){ if(DATA) render(DATA); });
     return true;
   }catch(e){ lastFail=e.message; return false; }
 }
@@ -1215,13 +1646,41 @@ $('#install').onclick=async()=>{
 };
 window.addEventListener('appinstalled',()=>$('#install').classList.add('hide'));
 
+$('#report').onclick=function(){ if(DATA) showReport(); };
+$('#pinreset').onclick=function(){ PINS=[]; savePins(); if(DATA) render(DATA); };
+
+let rzT=null;
+window.addEventListener('resize',function(){
+  clearTimeout(rzT);
+  rzT=setTimeout(function(){ if(DATA) renderTimeline(); },220);
+});
+window.addEventListener('orientationchange',function(){
+  setTimeout(function(){ if(DATA) renderTimeline(); },300);
+});
+
 (async()=>{
+  loadPins();
   const c=jget(KEY); if(c&&c.orders) render(c);
   if(await poll(true)) setInterval(poll,POLL);
-  else fail((c?'Showing the last figures this device saw. ':'')+
-      'Could not reach the Google Sheet.<br><br><span style="color:var(--overdue)">'+
-      (lastFail||'no details')+'</span><br><br>'+
-      'Check the sheet is still published: File &rarr; Share &rarr; Publish to web.');
+  else{
+    const isFile=(location.protocol==='file:');
+    const log=ATTEMPTS.map(function(a){
+      return '<div style="margin:3px 0"><span style="color:'+
+        (a.ok?'var(--ontrack)':'var(--overdue)')+'">'+(a.ok?'\u2713':'\u2717')+'</span> '+
+        a.name+(a.msg?' <span style="color:var(--dim)">— '+a.msg+'</span>':'')+'</div>';
+    }).join('');
+    fail((c?'Showing the last figures this device saw.<br><br>':'')+
+      (isFile
+        ? '<b style="color:var(--watch)">This page was opened straight from a folder.</b><br>'+
+          'Browsers block a file on your disk from reading anything online, so none of '+
+          'the routes below could run. Put these files on GitHub Pages and open that '+
+          'web address instead — that is the setup this board is built for.'
+        : 'Could not reach the Google Sheet. Every route was tried:')+
+      '<div style="text-align:left;max-width:520px;margin:16px auto;font-size:12px;'+
+      'font-family:\'IBM Plex Mono\',Consolas,monospace">'+log+'</div>'+
+      (isFile?'':'If all of them failed, check the sheet is still published: '+
+        'File &rarr; Share &rarr; Publish to web &rarr; Microsoft Excel (.xlsx).'));
+  }
   setInterval(()=>{if(DATA) render(DATA)},36e5);
 })();
 </script>
