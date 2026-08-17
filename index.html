@@ -260,6 +260,55 @@ td b{color:var(--ink)}
   box-shadow:0 0 12px rgba(43,255,176,.55)}
 .card.pinned{border-color:rgba(43,255,176,.4)}
 
+/* ---------------- section tabs ---------------- */
+.nav{display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--line);
+  overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav button{border:0;border-bottom:2px solid transparent;background:transparent;
+  color:var(--mute);font-size:12px;letter-spacing:.13em;text-transform:uppercase;
+  padding:10px 15px;border-radius:0;white-space:nowrap;font-weight:600}
+.nav button:hover{color:var(--ink);border-bottom-color:var(--line)}
+.nav button.on{color:var(--ontrack);border-bottom-color:var(--ontrack);
+  text-shadow:0 0 14px rgba(43,255,176,.4)}
+.nav .tally{display:inline-block;margin-left:7px;font-size:10px;padding:1px 6px;
+  border-radius:9px;background:var(--overdue);color:#fff;letter-spacing:0}
+@media (max-width:760px){ .nav button{padding:9px 11px;font-size:11px;letter-spacing:.08em} }
+
+/* ---------------- production line ---------------- */
+.flowwrap{background:var(--panel);border:1px solid var(--line);padding:16px 12px 10px}
+.flowwrap svg{display:block;width:100%;height:auto;min-width:0}
+.fl .node{fill:var(--panel2);stroke:var(--line)}
+.fl .node.slow{stroke:var(--overdue);stroke-width:2}
+.fl .nm{fill:var(--ink);font-size:10px;font-weight:600;text-anchor:middle;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.fl .val{fill:var(--ink);font-size:15px;font-weight:700;text-anchor:middle;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.fl .unit{fill:var(--dim);font-size:8px;text-anchor:middle;letter-spacing:.1em;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.fl .gapv{font-size:10px;font-weight:700;text-anchor:middle;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+@keyframes flowdash{to{stroke-dashoffset:-24}}
+.fl .pipe{stroke-width:9;fill:none;stroke-linecap:round}
+.fl .pulse{stroke-width:3;fill:none;stroke-dasharray:5 19;animation:flowdash 1.4s linear infinite}
+@media (prefers-reduced-motion:reduce){.fl .pulse{animation:none;opacity:.4}}
+.bneck{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--overdue);
+  padding:14px 16px;margin-bottom:12px;font-size:13.5px;line-height:1.7;color:var(--mute)}
+.bneck b{color:var(--overdue)}
+.bneck .ok{color:var(--ontrack)}
+.deptbar{display:grid;grid-template-columns:minmax(110px,1.1fr) 3fr 74px 58px;gap:12px;
+  align-items:center;padding:8px 15px;border-bottom:1px solid var(--line)}
+.deptbar:last-child{border-bottom:0}
+.deptbar .nm{font-size:13px}
+.dbar{height:11px;background:var(--panel2);border:1px solid var(--line);position:relative}
+.dbar i{position:absolute;inset:0 auto 0 0;display:block;background:var(--ontrack);
+  box-shadow:0 0 12px rgba(43,255,176,.4)}
+.dbar i.under{background:var(--overdue);box-shadow:0 0 12px rgba(255,46,99,.45)}
+.dbar .need{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);
+  box-shadow:0 0 7px rgba(220,233,242,.85)}
+.deptbar .q{text-align:right;font-family:"IBM Plex Mono","Consolas",monospace;
+  font-weight:600;font-size:14px}
+.deptbar .p{text-align:right;font-family:"IBM Plex Mono","Consolas",monospace;
+  font-size:12px;color:var(--dim)}
+
 /* ---------------- shipping timeline ---------------- */
 .tl{background:var(--panel);border:1px solid var(--line);padding:16px 18px 12px;overflow-x:auto}
 .tl svg{display:block;width:100%;height:auto;min-width:0}
@@ -441,12 +490,30 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
 <main id="board" class="hide">
   <div class="strip" id="strip"></div>
 
-  <section id="tlwrap">
+  <nav class="nav" id="nav"></nav>
+
+  <section id="tlwrap" data-tab="timeline">
     <div class="shead"><h2>Shipping timeline</h2><span id="tlnote"></span></div>
     <div class="tl" id="timeline"></div>
   </section>
 
-  <section>
+  <section data-tab="production">
+    <div class="shead"><h2>Production line</h2><span id="flnote"></span></div>
+    <div id="bneckbox"></div>
+    <div class="flowwrap" id="flowdiag"></div>
+  </section>
+
+  <section data-tab="production">
+    <div class="shead"><h2>Daily output by department</h2><span id="deptnote"></span></div>
+    <div class="fam" id="depts"></div>
+  </section>
+
+  <section data-tab="production">
+    <div class="shead"><h2>Steadiness</h2><span id="varnote"></span></div>
+    <div id="vartable"></div>
+  </section>
+
+  <section data-tab="orders">
     <div class="shead"><h2>Orders</h2><span id="ordnote"></span>
       <span id="pinnote" style="color:var(--ontrack)"></span>
       <button id="pinreset" class="hide" style="margin-left:auto">Reset order</button>
@@ -461,34 +528,34 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
     <div class="orders" id="orders"></div>
   </section>
 
-  <section>
+  <section data-tab="orders">
     <div class="shead"><h2>Still to produce by family</h2><span id="famnote"></span></div>
     <div class="fam" id="fam"></div>
   </section>
 
-  <section>
+  <section data-tab="overview">
     <div class="shead"><h2>Where the work sits</h2><span>share of everything still to pack</span></div>
     <div class="charts" id="charts"></div>
   </section>
 
-  <section>
+  <section data-tab="overview">
     <div class="shead"><h2>Capacity needed</h2><span id="capnote"></span></div>
     <div class="cap" id="cap"></div>
     <div id="captable"></div>
   </section>
 
-  <section id="cwrap2">
+  <section id="cwrap2" data-tab="followups">
     <div class="shead"><h2>Customer complaints</h2><span id="cnote"></span></div>
     <div class="cplaint" id="ccards"></div>
     <div id="ctable"></div>
   </section>
 
-  <section>
+  <section data-tab="followups">
     <div class="shead"><h2>Flow</h2><span id="flownote"></span></div>
     <div id="flow"></div>
   </section>
 
-  <section id="sampwrap" class="hide">
+  <section id="sampwrap" class="hide" data-tab="followups">
     <div class="shead"><h2>Sampling</h2><span id="sampnote"></span></div>
     <div class="samp" id="samp"></div>
   </section>
@@ -512,7 +579,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v14 · 12 Aug 2026';
+const VERSION='v15 · 17 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -638,6 +705,45 @@ function parse(wb,stamp){
         notes:String(r[k('Notes')]||'').trim()});
     }
   }
+  /* ---- Daily Output: two header rows (departments, then families) ---- */
+  let output=null;
+  const os2=wb.Sheets['Daily Output'];
+  if(os2){
+    const g2=grid(os2);
+    let hr=-1;
+    for(let i=0;i<Math.min(g2.length,8);i++){
+      if((g2[i]||[]).some(c=>String(c||'').trim().toLowerCase()==='date')){hr=i;break;}
+    }
+    if(hr>=0&&g2[hr+1]){
+      const depRow=g2[hr], famRow=g2[hr+1];
+      const cols=[]; let dep='';
+      const width=Math.max(depRow.length,famRow.length);
+      for(let c=0;c<width;c++){
+        const d=String(depRow[c]||'').trim();
+        if(d) dep=d;                                   // merged cells only carry the first
+        const f=String(famRow[c]||'').trim();
+        if(!f||!dep) continue;
+        if(/^date$/i.test(dep)||/^remark/i.test(dep)) continue;
+        cols.push({c:c,dept:dep,fam:f});
+      }
+      const depts=[],fams=[];
+      cols.forEach(x=>{ if(depts.indexOf(x.dept)<0) depts.push(x.dept);
+                        if(fams.indexOf(x.fam)<0) fams.push(x.fam); });
+      const dateCol=depRow.findIndex(c=>String(c||'').trim().toLowerCase()==='date');
+      const days=[];
+      for(let i=hr+2;i<g2.length;i++){
+        const r=g2[i]||[];
+        const d=toDate(r[dateCol<0?0:dateCol]);
+        if(!d) continue;
+        const cell={};
+        let any=0;
+        cols.forEach(x=>{ const v=num(r[x.c]);
+          if(v){ cell[x.dept+'|'+x.fam]=v; any+=v; } });
+        days.push({date:d,v:cell,total:any});
+      }
+      output={depts:depts,fams:fams,days:days};
+    }
+  }
   // capacity settings live in Excel so they can be changed there
   let target=null;
   const ts=wb.Sheets['Targets'];
@@ -649,7 +755,7 @@ function parse(wb,stamp){
             week:num(find('working days per week'))||6,
             hol:num(find('holidays to deduct'))||0};
   }
-  return {orders,samples,target,stamp:stamp||Date.now()};
+  return {orders,samples,target,output,stamp:stamp||Date.now()};
 }
 
 /* ---------------- history ---------------- */
@@ -816,7 +922,6 @@ function render(d){
       <div class="pc">${f.qty?Math.round(f.packed/f.qty*100):0}%</div>
     </div>`;}).join('')||'<div class="famrow"><div class="nm">Nothing outstanding.</div></div>';
 
-  renderTimeline();
   renderCharts();
   renderCapacity();
   renderComplaints();
@@ -854,6 +959,8 @@ function render(d){
     'Google refreshes a published sheet a few minutes after you edit it.<br>'+
     'Every reading is kept so the board can work out how long things sit at each stage — use Export history to take that data out.';
   $('#drop').classList.add('hide'); $('#board').classList.remove('hide');
+  renderNav();
+  showTab(TAB);            // draws whichever tab is open, at its real width
 }
 
 /* ---------------- complaints (separate workbook) ---------------- */
@@ -955,6 +1062,242 @@ function complaintModal(cust){
         <td>${c.text}</td><td>${c.dept||'—'}</td><td>${c.action||'—'}</td>
         <td style="color:${c.open?'var(--overdue)':'var(--ontrack)'}">${c.status}</td></tr>`).join('')}
     </tbody></table>`);
+}
+
+/* ---------------- section tabs ---------------- */
+const TABS=[{k:'overview',n:'Overview'},{k:'timeline',n:'Timeline'},
+            {k:'production',n:'Production'},{k:'orders',n:'Orders'},
+            {k:'followups',n:'Follow-ups'}];
+const TABKEY='phf_tab_v1';
+let TAB=jget(TABKEY)||'overview';
+function showTab(k){
+  if(!TABS.some(function(t){return t.k===k;})) k='overview';
+  TAB=k; jset(TABKEY,k);
+  document.querySelectorAll('section[data-tab]').forEach(function(s){
+    const mine=(s.dataset.tab===k);
+    if(!mine){ s.style.display='none'; return; }
+    s.style.display=s.classList.contains('hide')?'none':'';
+  });
+  document.querySelectorAll('#nav button').forEach(function(b){
+    b.className=(b.dataset.go===k)?'on':'';
+  });
+  if(k==='timeline') renderTimeline();
+  if(k==='production') renderLine();
+  window.scrollTo(0,0);
+}
+function renderNav(){
+  const hot=LIVE.filter(function(o){return o.r.k==='overdue'||o.r.k==='behind';}).length;
+  const opens=COMPLAINTS?COMPLAINTS.filter(function(c){return c.open;}).length:0;
+  $('#nav').innerHTML=TABS.map(function(t){
+    let tally='';
+    if(t.k==='orders'&&hot) tally='<span class="tally">'+hot+'</span>';
+    if(t.k==='followups'&&opens) tally='<span class="tally">'+opens+'</span>';
+    return '<button data-go="'+t.k+'" class="'+(t.k===TAB?'on':'')+'">'+t.n+tally+'</button>';
+  }).join('');
+}
+document.addEventListener('click',function(e){
+  const b=e.target.closest('#nav button[data-go]');
+  if(b) showTab(b.dataset.go);
+});
+
+/* ---------------- production line ----------------
+   Departments are read left to right from the Daily Output tab, which is the
+   order work actually flows in. Everything below follows from that.
+   ------------------------------------------------------------------- */
+function lineStats(){
+  const o=DATA.output;
+  if(!o||!o.days.length) return null;
+  const active=o.days.filter(function(d){return d.total>0;});
+  const nd=Math.max(1,active.length);
+  const per={};
+  o.depts.forEach(function(dep){
+    let tot=0; const daily=[];
+    o.days.forEach(function(d){
+      let s=0; o.fams.forEach(function(f){ s+=d.v[dep+'|'+f]||0; });
+      if(d.total>0) daily.push(s);
+      tot+=s;
+    });
+    const avg=tot/nd;
+    const mx=daily.length?Math.max.apply(null,daily):0;
+    const sd=daily.length>1
+      ? Math.sqrt(daily.reduce(function(a,x){return a+(x-avg)*(x-avg);},0)/(daily.length-1)) : 0;
+    per[dep]={dept:dep,total:tot,avg:avg,max:mx,
+              idle:daily.filter(function(x){return x===0;}).length,
+              cv:avg>0?sd/avg:0};
+  });
+  const gaps=[];
+  for(let i=0;i<o.depts.length-1;i++){
+    const a=o.depts[i],b=o.depts[i+1];
+    gaps.push({from:a,to:b,build:per[a].total-per[b].total,
+               perDay:(per[a].total-per[b].total)/nd});
+  }
+  const running=o.depts.filter(function(d){return per[d].total>0;});
+  let slow=null;
+  running.forEach(function(d){ if(!slow||per[d].avg<per[slow].avg) slow=d; });
+  const last=o.depts[o.depts.length-1];
+  return {o:o,per:per,gaps:gaps,days:nd,slow:slow,running:running,
+          lastDept:last,lastAvg:per[last]?per[last].avg:0,
+          firstDay:active.length?active[0].date:null,
+          lastDay:active.length?active[active.length-1].date:null};
+}
+
+function requiredPerDay(){
+  const t=DATA.target;
+  if(!t||!t.date) return null;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const end=new Date(t.date);
+  if(end<today) return null;
+  const days=workingDays(today,end,t.week,t.hol);
+  const bal=LIVE.reduce(function(s,o){return s+o.bal;},0);
+  return {rate:Math.ceil(bal/days),days:days,bal:bal,end:end};
+}
+
+function renderLine(){
+  const S=lineStats();
+  if(!S){
+    $('#flnote').textContent='no data yet';
+    $('#bneckbox').innerHTML='<div class="bneck" style="border-left-color:var(--line)">'+
+      'No <b style="color:var(--ink)">Daily Output</b> tab found in your sheet.<br>'+
+      'Add one with a row per day and a column per department, and this fills itself in.</div>';
+    $('#flowdiag').innerHTML=''; $('#depts').innerHTML=''; $('#vartable').innerHTML='';
+    $('#deptnote').textContent=''; $('#varnote').textContent='';
+    return;
+  }
+  const req=requiredPerDay();
+  const range=(S.firstDay&&S.lastDay)
+    ? new Date(S.firstDay).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' \u2013 '+
+      new Date(S.lastDay).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
+  $('#flnote').textContent=S.days+' working day'+(S.days>1?'s':'')+' recorded'+(range?' \u00b7 '+range:'');
+
+  const piles=S.gaps.filter(function(g){return g.build>0;}).sort(function(a,b){return b.build-a.build;});
+  const starved=S.gaps.filter(function(g){return g.build<0;}).sort(function(a,b){return a.build-b.build;});
+  let msg='';
+  if(piles.length){
+    const p=piles[0];
+    msg+='Work is piling up fastest <b>between '+p.from+' and '+p.to+'</b> \u2014 '+
+      fmt(p.build)+' pieces have gone into '+p.from+' that '+p.to+' has not taken out'+
+      (S.days>1?', about '+fmt(Math.round(p.perDay))+' a day':'')+'.<br>';
+  }
+  if(S.slow) msg+='Slowest running department is <b>'+S.slow+'</b> at '+
+    fmt(Math.round(S.per[S.slow].avg))+' a day. Nothing downstream of it can go faster than that.<br>';
+  if(req) msg+='<span class="'+(S.lastAvg>=req.rate?'ok':'')+'">'+S.lastDept+' is averaging '+
+    fmt(Math.round(S.lastAvg))+' a day. To clear the order book by '+
+    req.end.toLocaleDateString('en-GB',{day:'numeric',month:'long'})+' you need '+
+    fmt(req.rate)+' a day'+
+    (S.lastAvg>=req.rate?' \u2014 you are ahead of that.':' \u2014 a shortfall of '+
+      fmt(req.rate-Math.round(S.lastAvg))+' a day.')+'</span>';
+  if(starved.length) msg+='<br><span style="color:var(--dim)">'+starved[0].to+
+    ' is taking out more than '+starved[0].from+' puts in, so it is drawing down a buffer.</span>';
+  $('#bneckbox').innerHTML='<div class="bneck">'+(msg||'Not enough data yet.')+'</div>';
+
+  const box=$('#flowdiag');
+  const avail=Math.max(280,(box.clientWidth||box.getBoundingClientRect().width||
+                            (window.innerWidth||1200)-56)-2);
+  const n=S.o.depts.length;
+  const W=Math.round(avail);
+  const maxAvg=Math.max.apply(null,[1].concat(S.o.depts.map(function(d){return S.per[d].avg;})));
+  const gapCol=function(g){
+    if(g.build<=0) return '#2A9BFF';
+    return g.build>maxAvg*S.days*0.25?'#FF2E63':'#FF7A1A';
+  };
+  const short=function(d){ return d.length>13?d.slice(0,12)+'\u2026':d; };
+  let svg='';
+
+  if(avail<700){
+    /* a phone cannot fit ten boxes across, so the line runs down the screen */
+    const NH=44, GAPH=30, TOP=8, NW=W-24;
+    const H=TOP+n*NH+(n-1)*GAPH+14;
+    let s='';
+    const y=function(i){ return TOP+i*(NH+GAPH); };
+    S.gaps.forEach(function(g,i){
+      const y1=y(i)+NH, y2=y(i+1), cx=12+NW*0.5;
+      const col=gapCol(g);
+      s+='<path class="pipe" d="M'+cx+' '+y1+' V'+y2+'" stroke="'+col+'" opacity=".3"/>'+
+         '<path class="pulse" d="M'+cx+' '+y1+' V'+y2+'" stroke="'+col+
+         '" style="animation-delay:'+(i*0.16).toFixed(2)+'s"/>'+
+         '<text class="gapv" x="'+(cx+14)+'" y="'+(y1+GAPH/2+4)+
+         '" fill="'+col+'" style="text-anchor:start">'+(g.build>0?'+':'')+fmt(g.build)+' waiting</text>';
+    });
+    S.o.depts.forEach(function(d,i){
+      const p=S.per[d], slow=(d===S.slow);
+      const wpx=Math.max(3,(p.avg/maxAvg)*(NW-2));
+      s+='<g><rect class="node'+(slow?' slow':'')+'" x="12" y="'+y(i)+
+        '" width="'+NW+'" height="'+NH+'" rx="4"/>'+
+        '<rect x="13" y="'+(y(i)+NH-6)+'" width="'+wpx.toFixed(1)+'" height="4" rx="2" fill="'+
+        (slow?'#FF2E63':'#2A9BFF')+'" opacity=".5"/>'+
+        '<text class="nm" x="24" y="'+(y(i)+26)+'" style="text-anchor:start">'+short(d)+'</text>'+
+        '<text class="val" x="'+(W-24)+'" y="'+(y(i)+28)+'" style="text-anchor:end">'+
+        fmt(Math.round(p.avg))+'</text>'+
+        '<title>'+d+' \u2014 '+fmt(p.total)+' total, '+fmt(Math.round(p.avg))+'/day'+
+        (slow?' \u2014 slowest running department':'')+'</title></g>';
+    });
+    svg='<svg class="fl" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
+      '" preserveAspectRatio="xMinYMin meet">'+s+'</svg>';
+  } else {
+    const NW=Math.max(70,Math.min(128,(avail-24)/n-14));
+    const GAP=Math.max(14,(avail-24-NW*n)/Math.max(1,n-1));
+    const NH=62, TOP=30, H=TOP+NH+58;
+    const x=function(i){ return 12+i*(NW+GAP); };
+    let pipes='',nodes='';
+    S.gaps.forEach(function(g,i){
+      const x1=x(i)+NW, x2=x(i+1), yy=TOP+NH/2;
+      if(x2<=x1) return;
+      const col=gapCol(g);
+      pipes+='<path class="pipe" d="M'+x1.toFixed(1)+' '+yy+' H'+x2.toFixed(1)+
+        '" stroke="'+col+'" opacity=".3"/>'+
+        '<path class="pulse" d="M'+x1.toFixed(1)+' '+yy+' H'+x2.toFixed(1)+'" stroke="'+col+
+        '" style="animation-delay:'+(i*0.16).toFixed(2)+'s"/>'+
+        '<text class="gapv" x="'+((x1+x2)/2).toFixed(1)+'" y="'+(TOP+NH+16)+'" fill="'+col+'">'+
+        (g.build>0?'+':'')+fmt(g.build)+'</text>';
+    });
+    S.o.depts.forEach(function(d,i){
+      const p=S.per[d], slow=(d===S.slow);
+      const hpx=Math.max(3,(p.avg/maxAvg)*(NH-26));
+      nodes+='<g><rect class="node'+(slow?' slow':'')+'" x="'+x(i)+'" y="'+TOP+
+        '" width="'+NW.toFixed(1)+'" height="'+NH+'" rx="4"/>'+
+        '<rect x="'+(x(i)+1)+'" y="'+(TOP+NH-1-hpx)+'" width="'+(NW-2).toFixed(1)+
+        '" height="'+hpx.toFixed(1)+'" rx="3" fill="'+(slow?'#FF2E63':'#2A9BFF')+'" opacity=".22"/>'+
+        '<text class="val" x="'+(x(i)+NW/2).toFixed(1)+'" y="'+(TOP+28)+'">'+fmt(Math.round(p.avg))+'</text>'+
+        '<text class="unit" x="'+(x(i)+NW/2).toFixed(1)+'" y="'+(TOP+41)+'">PER DAY</text>'+
+        '<text class="nm" x="'+(x(i)+NW/2).toFixed(1)+'" y="'+(TOP-10)+'">'+short(d)+'</text>'+
+        '<title>'+d+' \u2014 '+fmt(p.total)+' total, '+fmt(Math.round(p.avg))+
+        '/day, best day '+fmt(p.max)+(slow?' \u2014 slowest running department':'')+'</title></g>';
+    });
+    svg='<svg class="fl" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
+      '" preserveAspectRatio="xMinYMin meet">'+pipes+nodes+
+      '<text class="unit" x="12" y="'+(H-6)+'" style="text-anchor:start">'+
+      'NUMBER BETWEEN TWO DEPARTMENTS = PIECES WAITING BETWEEN THEM</text></svg>';
+  }
+  box.innerHTML=svg;
+
+  const need=req?req.rate:0;
+  const top=Math.max(maxAvg,need||0)*1.1;
+  $('#deptnote').textContent=need?('white line = '+fmt(need)+' a day needed'):'average per working day';
+  $('#depts').innerHTML=S.o.depts.map(function(d){
+    const p=S.per[d], w=(p.avg/top*100).toFixed(1), under=need&&p.avg<need;
+    return '<div class="deptbar"><div class="nm">'+d+'</div>'+
+      '<div class="dbar"><i class="'+(under?'under':'')+'" style="width:'+w+'%"></i>'+
+      (need?'<span class="need" style="left:'+(need/top*100).toFixed(1)+'%"></span>':'')+
+      '</div><div class="q">'+fmt(Math.round(p.avg))+'</div>'+
+      '<div class="p">'+fmt(p.total)+'</div></div>';
+  }).join('');
+
+  const rows=S.o.depts.map(function(d){return S.per[d];})
+    .filter(function(p){return p.total>0;}).sort(function(a,b){return b.cv-a.cv;});
+  $('#varnote').textContent=S.days<5?'needs about a week of days to mean much'
+    :'how much each department swings from day to day';
+  $('#vartable').innerHTML='<table><thead><tr><th>Department</th>'+
+    '<th style="text-align:right">Average/day</th><th style="text-align:right">Best day</th>'+
+    '<th style="text-align:right">Days idle</th><th style="text-align:right">Swing</th>'+
+    '<th>Reading</th></tr></thead><tbody>'+
+    rows.map(function(p){
+      const lvl=p.cv>0.6?'very uneven':(p.cv>0.3?'uneven':'steady');
+      const col=p.cv>0.6?'var(--overdue)':(p.cv>0.3?'var(--watch)':'var(--ontrack)');
+      return '<tr><td><b>'+p.dept+'</b></td><td class="n">'+fmt(Math.round(p.avg))+'</td>'+
+        '<td class="n">'+fmt(p.max)+'</td><td class="n">'+p.idle+'</td>'+
+        '<td class="n" style="color:'+col+'">'+Math.round(p.cv*100)+'%</td>'+
+        '<td style="color:'+col+'">'+lvl+'</td></tr>';
+    }).join('')+'</tbody></table>';
 }
 
 /* ---------------- shipping timeline ----------------
@@ -1532,7 +1875,7 @@ async function getViaTabs(id,fetchTab){
     names.push(v);
   }
   const Sheets={Orders:orders}, SheetNames=['Orders'];
-  const got=await Promise.all(names.concat(['Sampling','Targets'])
+  const got=await Promise.all(names.concat(['Sampling','Targets','Daily Output'])
     .map(n=>fetchTab(id,n).then(s=>[n,s]).catch(()=>null)));
   got.forEach(x=>{ if(x){Sheets[x[0]]=x[1]; SheetNames.push(x[0]);} });
   return {wb:{SheetNames,Sheets},sig:SheetNames.length+':'+JSON.stringify(g).length};
@@ -1652,10 +1995,18 @@ $('#pinreset').onclick=function(){ PINS=[]; savePins(); if(DATA) render(DATA); }
 let rzT=null;
 window.addEventListener('resize',function(){
   clearTimeout(rzT);
-  rzT=setTimeout(function(){ if(DATA) renderTimeline(); },220);
+  rzT=setTimeout(function(){
+    if(!DATA) return;
+    if(TAB==='timeline') renderTimeline();
+    if(TAB==='production') renderLine();
+  },220);
 });
 window.addEventListener('orientationchange',function(){
-  setTimeout(function(){ if(DATA) renderTimeline(); },300);
+  setTimeout(function(){
+    if(!DATA) return;
+    if(TAB==='timeline') renderTimeline();
+    if(TAB==='production') renderLine();
+  },300);
 });
 
 (async()=>{
