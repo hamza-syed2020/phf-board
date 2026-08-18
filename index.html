@@ -25,10 +25,48 @@ if(typeof XLSX==='undefined'){
   --ink:#DCE9F2; --mute:#6E8496; --dim:#465868;
   --ontrack:#2BFFB0; --watch:#FFD429; --behind:#FF7A1A; --overdue:#FF2E63; --done:#3E5266;
   --purchase:#2A9BFF; --inprod:#C77DFF; --packed:#2BFFB0; --sample:#FF9CE0;
+
+  --neon:#F2FF3C; --neonhot:#FF3C6E; --neoncold:#3CF2FF;
+  --asphalt:#0B1219; --logo:invert(1) brightness(1.6);
+  --shadow:rgba(0,0,0,.7);
 }
+
+/* ---------------- light theme ----------------
+   Same layout, same accent family, just flipped. Neons are darkened a shade
+   so they stay readable on white. */
+html[data-theme="light"]{
+  --void:#F4F6F8; --panel:#FFFFFF; --panel2:#EDF1F5; --line:#D3DBE3;
+  --ink:#10171E; --mute:#4E5D6B; --dim:#7C8B99;
+  --ontrack:#0F9E6E; --watch:#B8860B; --behind:#D4600C; --overdue:#D01A45; --done:#9AA8B4;
+  --purchase:#1272CC; --inprod:#8A3FD1; --packed:#0F9E6E; --sample:#C0369B;
+  --neon:#B8A800; --neonhot:#D01A45; --neoncold:#0E8FA8;
+  --asphalt:#DCE3EA; --logo:none;
+  --shadow:rgba(16,23,30,.16);
+}
+html[data-theme="light"] body{
+  background:radial-gradient(1100px 620px at 12% -8%,#E4EBF2 0%,transparent 62%),var(--void);
+}
+html[data-theme="light"] .stat.hot .v,
+html[data-theme="light"] .stat.warm .v,
+html[data-theme="light"] .stat.good .v,
+html[data-theme="light"] .stat.pur .v,
+html[data-theme="light"] .stat.inp .v,
+html[data-theme="light"] .nav button.on{text-shadow:none}
+html[data-theme="light"] .card::before,
+html[data-theme="light"] .fill,
+html[data-theme="light"] .dot,
+html[data-theme="light"] .bar i,
+html[data-theme="light"] .dbar i,
+html[data-theme="light"] .stage i,
+html[data-theme="light"] .minibar i,
+html[data-theme="light"] header::after{box-shadow:none}
+html[data-theme="light"] .f-overdue{box-shadow:none}
+html[data-theme="light"] .pin.on{box-shadow:none}
+html[data-theme="light"] .fampick button.on{box-shadow:none}
 *{box-sizing:border-box;margin:0;padding:0}
 html{background:var(--void)}
 body{background:radial-gradient(1100px 620px at 12% -8%,#0E1A24 0%,transparent 62%),var(--void);
+  transition:background .25s ease,color .25s ease;
   color:var(--ink);font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
   font-size:15px;line-height:1.45;min-height:100vh;padding:18px 22px 30px;-webkit-font-smoothing:antialiased}
 .num,td.n,.qty{font-family:"IBM Plex Mono","Consolas",monospace;font-variant-numeric:tabular-nums}
@@ -38,7 +76,10 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;
   padding-bottom:13px;margin-bottom:18px;border-bottom:1px solid var(--line);position:relative}
 header::after{content:"";position:absolute;left:0;bottom:-1px;width:170px;height:1px;
   background:var(--ontrack);box-shadow:0 0 11px var(--ontrack)}
+.brand img{display:block;height:34px;width:auto;margin-bottom:9px;
+  filter:var(--logo);transition:filter .25s ease}
 .brand h1{font-size:27px;font-weight:800;line-height:1}
+@media (max-width:760px){ .brand img{height:26px;margin-bottom:7px} }
 .brand p{color:var(--mute);font-size:12.5px;margin-top:4px;letter-spacing:.05em}
 .rightbar{display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap}
 .clock{text-align:right}.clock .d{font-size:19px;font-weight:600}
@@ -288,12 +329,12 @@ td b{color:var(--ink)}
   font-family:"IBM Plex Mono","Consolas",monospace}
 @keyframes flowdash{to{stroke-dashoffset:-40}}
 @keyframes roadglow{0%,100%{opacity:.5}50%{opacity:.95}}
-.fl .road{stroke-width:14;fill:none;stroke-linecap:round;stroke:#0B1219}
+.fl .road{stroke-width:14;fill:none;stroke-linecap:round;stroke:var(--asphalt)}
 .fl .kerb{stroke-width:15.5;fill:none;stroke-linecap:round;opacity:.5}
-.fl .lane{stroke-width:2.5;fill:none;stroke:#F2FF3C;stroke-dasharray:9 11;
+.fl .lane{stroke-width:2.5;fill:none;stroke:var(--neon);stroke-dasharray:9 11;
   filter:url(#neon);animation:flowdash 1.15s linear infinite}
-.fl .lane.hot{stroke:#FF3C6E}
-.fl .lane.cold{stroke:#3CF2FF}
+.fl .lane.hot{stroke:var(--neonhot)}
+.fl .lane.cold{stroke:var(--neoncold)}
 .fl .kerb.glow{animation:roadglow 2.6s ease-in-out infinite}
 @media (prefers-reduced-motion:reduce){
   .fl .lane{animation:none} .fl .kerb.glow{animation:none}
@@ -338,6 +379,47 @@ td b{color:var(--ink)}
 .hub .out{display:inline-block;font-size:9.5px;letter-spacing:.1em;padding:1px 6px;margin-top:7px;
   border:1px solid rgba(199,125,255,.45);color:var(--inprod);border-radius:2px;
   font-family:"IBM Plex Mono","Consolas",monospace}
+
+/* ---------------- factory map ---------------- */
+.mapwrap{background:
+   radial-gradient(900px 420px at 50% 12%, rgba(42,155,255,.10), transparent 65%),
+   var(--panel);
+  border:1px solid var(--line);padding:6px 8px 4px;position:relative;overflow:hidden}
+.mapwrap svg{display:block;width:100%;height:auto}
+.fm .floorplate{fill:var(--panel2);stroke:var(--line);stroke-width:1;opacity:.55}
+.fm .rtop{stroke:var(--line);stroke-width:.8}
+.fm .rside{stroke:none}
+.fm .rlbl{fill:var(--mute);font-size:7px;text-anchor:middle;
+  font-family:"IBM Plex Mono","Consolas",monospace;pointer-events:none}
+.fm .rlbl.big{fill:var(--ink);font-size:8.4px;font-weight:600}
+.fm .rout{fill:var(--ink);font-size:9px;font-weight:700;text-anchor:middle;
+  font-family:"IBM Plex Mono","Consolas",monospace;pointer-events:none}
+.fm .badge{font-size:7.5px;font-weight:700;text-anchor:middle;fill:var(--void);
+  font-family:"IBM Plex Mono","Consolas",monospace;pointer-events:none}
+.fm .floorname{fill:var(--dim);font-size:10px;letter-spacing:.24em;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.fm g.room{cursor:pointer}
+.fm g.room:hover .rtop{stroke:var(--ontrack);stroke-width:1.6}
+@keyframes fmdash{to{stroke-dashoffset:-32}}
+.fm .flowbase{fill:none;stroke:var(--asphalt);stroke-width:5.5;stroke-linecap:round;opacity:.85}
+.fm .flowlane{fill:none;stroke:var(--neon);stroke-width:1.9;stroke-dasharray:7 9;
+  stroke-linecap:round;filter:url(#fmneon);animation:fmdash 1.25s linear infinite}
+.fm .flowlane.bad{stroke:var(--neonhot);stroke-width:2.4}
+.fm .hop{fill:none;stroke:var(--neonhot);stroke-width:2.2;stroke-dasharray:4 6;
+  filter:url(#fmneon);animation:fmdash 1.05s linear infinite;opacity:.9}
+@media (prefers-reduced-motion:reduce){
+  .fm .flowlane,.fm .hop{animation:none}
+}
+.maplegend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--dim);
+  font-family:"IBM Plex Mono","Consolas",monospace;padding:8px 4px 2px}
+.maplegend i{display:inline-block;width:9px;height:9px;margin-right:6px;vertical-align:middle}
+.mapissue{background:var(--panel);border:1px solid var(--line);
+  border-left:3px solid var(--overdue);padding:14px 16px;margin-bottom:12px;
+  font-size:13.5px;line-height:1.7;color:var(--mute)}
+.mapissue b{color:var(--overdue)}
+.mapissue .ok{color:var(--ontrack)}
+.mapissue ol{margin:8px 0 0 18px}
+.mapissue li{margin-bottom:4px}
 
 /* ---------------- shipping timeline ---------------- */
 .tl{background:var(--panel);border:1px solid var(--line);padding:16px 18px 12px;overflow-x:auto}
@@ -483,6 +565,8 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
 
 <header>
   <div class="brand">
+    <img id="logo" src="logo.png" srcset="logo.png 1x, logo@2x.png 2x"
+         alt="Professional — Envision Life">
     <h1>Production Board</h1>
     <p>PROFESSIONAL HOSPITAL FURNISHERS &middot; SIALKOT <span id="ver" style="color:var(--ontrack)"></span></p>
   </div>
@@ -490,6 +574,7 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
     <div class="src hide" id="srcbox">
       <span class="dot" id="dot"></span><span id="srctext"></span>
       <span id="checktext" style="color:var(--dim)"></span>
+      <button id="theme" title="Switch between dark and light">Light</button>
       <button id="report">Daily plan</button>
       <button id="install" class="hide">Install app</button>
       <button id="reload">Refresh now</button>
@@ -525,6 +610,13 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
   <section id="tlwrap" data-tab="timeline">
     <div class="shead"><h2>Shipping timeline</h2><span id="tlnote"></span></div>
     <div class="tl" id="timeline"></div>
+  </section>
+
+  <section data-tab="factory">
+    <div class="shead"><h2>Factory map</h2><span id="mapnote"></span></div>
+    <div id="mapissues"></div>
+    <div class="mapwrap" id="factorymap"></div>
+    <div class="maplegend" id="maplegend"></div>
   </section>
 
   <section data-tab="production">
@@ -615,7 +707,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v16 · 18 Aug 2026';
+const VERSION='v17 · 18 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -1162,8 +1254,8 @@ function complaintModal(cust){
 
 /* ---------------- section tabs ---------------- */
 const TABS=[{k:'overview',n:'Overview'},{k:'timeline',n:'Timeline'},
-            {k:'production',n:'Production'},{k:'orders',n:'Orders'},
-            {k:'followups',n:'Follow-ups'}];
+            {k:'factory',n:'Factory'},{k:'production',n:'Production'},
+            {k:'orders',n:'Orders'},{k:'followups',n:'Follow-ups'}];
 const TABKEY='phf_tab_v1';
 let TAB=jget(TABKEY)||'overview';
 function showTab(k){
@@ -1179,6 +1271,7 @@ function showTab(k){
   });
   if(k==='timeline') renderTimeline();
   if(k==='production') renderLine();
+  if(k==='factory') renderFactory();
   window.scrollTo(0,0);
 }
 function renderNav(){
@@ -1194,6 +1287,259 @@ function renderNav(){
 document.addEventListener('click',function(e){
   const b=e.target.closest('#nav button[data-go]');
   if(b) showTab(b.dataset.go);
+});
+
+/* ---------------- factory map ----------------
+   Two floors drawn in isometric, the first floor floating above the ground.
+   Rooms are extruded blocks; production rooms carry their step number and
+   whatever the output sheets say came off them. The neon road runs 1 to 13
+   and turns red wherever the work has to change floor. ------------------- */
+const FMAP={"ground":[{"n":"Garage","x":0,"y":0,"w":124,"h":48,"step":null,"kind":"room"},{"n":"Vendor Meeting","x":0,"y":57,"w":26,"h":22,"step":null,"kind":"room"},{"n":"PPC / Planning","x":26,"y":57,"w":28,"h":22,"step":null,"kind":"room"},{"n":"Receiving / Filing","x":54,"y":57,"w":28,"h":22,"step":2,"kind":"room"},{"n":"R & D","x":82,"y":57,"w":42,"h":22,"step":null,"kind":"room"},{"n":"Milling / Machining","x":132,"y":0,"w":74,"h":22,"step":1,"kind":"room"},{"n":"Fitting","x":132,"y":22,"w":20,"h":17,"step":4,"kind":"room"},{"n":"Sand Blasting","x":132,"y":39,"w":20,"h":17,"step":9,"kind":"room"},{"n":"Electro Polish","x":132,"y":56,"w":20,"h":25,"step":null,"kind":"room"},{"n":"Corridor","x":152,"y":22,"w":14,"h":59,"step":null,"kind":"corridor"},{"n":"Blade Grinding","x":170,"y":26,"w":18,"h":17,"step":3,"kind":"room"},{"n":"Ring Grinding","x":188,"y":26,"w":18,"h":17,"step":5,"kind":"room"},{"n":"Vacant","x":206,"y":26,"w":18,"h":17,"step":null,"kind":"vacant"},{"n":"Passivation","x":170,"y":43,"w":36,"h":19,"step":11,"kind":"room"},{"n":"Vacant","x":206,"y":43,"w":18,"h":19,"step":null,"kind":"vacant"},{"n":"Vacant","x":206,"y":62,"w":18,"h":19,"step":null,"kind":"vacant"},{"n":"Corridor","x":0,"y":79,"w":124,"h":10,"step":null,"kind":"corridor"}],"first":[{"n":"Bedroom","x":0,"y":0,"w":24,"h":20,"step":null,"kind":"room"},{"n":"Office","x":24,"y":0,"w":22,"h":20,"step":null,"kind":"room"},{"n":"Reception","x":46,"y":0,"w":24,"h":20,"step":null,"kind":"room"},{"n":"Bathroom","x":6,"y":20,"w":18,"h":14,"step":null,"kind":"room"},{"n":"Garage (open)","x":24,"y":20,"w":46,"h":36,"step":null,"kind":"open"},{"n":"Corridor","x":70,"y":14,"w":32,"h":8,"step":null,"kind":"corridor"},{"n":"Meeting Room","x":70,"y":22,"w":32,"h":22,"step":null,"kind":"room"},{"n":"E3","x":102,"y":12,"w":32,"h":32,"step":null,"kind":"room"},{"n":"Stock","x":134,"y":12,"w":52,"h":32,"step":null,"kind":"room"},{"n":"Office ?","x":150,"y":0,"w":20,"h":12,"step":null,"kind":"room"},{"n":"Corridor","x":170,"y":0,"w":22,"h":12,"step":null,"kind":"corridor"},{"n":"Final Packing","x":186,"y":12,"w":26,"h":32,"step":12,"kind":"room"},{"n":"Ultrasonic","x":192,"y":0,"w":24,"h":12,"step":10,"kind":"room"},{"n":"QC (Lab)","x":212,"y":30,"w":24,"h":14,"step":null,"kind":"room"},{"n":"Office","x":216,"y":0,"w":20,"h":12,"step":null,"kind":"room"},{"n":"QC","x":236,"y":0,"w":22,"h":12,"step":7,"kind":"room"},{"n":"Vacant","x":258,"y":0,"w":22,"h":12,"step":null,"kind":"vacant"},{"n":"Office","x":280,"y":0,"w":22,"h":12,"step":null,"kind":"room"},{"n":"Final Polish","x":236,"y":30,"w":16,"h":14,"step":8,"kind":"room"},{"n":"Rough Polish","x":252,"y":30,"w":50,"h":14,"step":6,"kind":"room"},{"n":"Marketing Sales","x":76,"y":54,"w":26,"h":20,"step":null,"kind":"room"},{"n":"Dir Office","x":102,"y":54,"w":22,"h":20,"step":null,"kind":"room"},{"n":"Shipment","x":134,"y":54,"w":82,"h":22,"step":13,"kind":"room"},{"n":"Accounts","x":20,"y":64,"w":28,"h":18,"step":null,"kind":"room"},{"n":"Export","x":48,"y":64,"w":24,"h":18,"step":null,"kind":"room"}],"steps":{"1":{"name":"Milling / Machining","acts":["Milling"]},"2":{"name":"Receiving / Filing","acts":["Filing","Receiving Out","Receiving"]},"3":{"name":"Blade Grinding","acts":["Inner Stone Grinding","Blade Grinding"]},"4":{"name":"Fitting","acts":["Fitting"]},"5":{"name":"Ring Grinding","acts":["Ring Grinding"]},"6":{"name":"Rough Polish","acts":["Rough Belt Grinding","Rough Polish","Polish"]},"7":{"name":"QC","acts":["QC"]},"8":{"name":"Final Polish","acts":["Final Polishing","Final Polish"]},"9":{"name":"Sand Blasting","acts":["Sand Blasting"]},"10":{"name":"Ultrasonic","acts":["Ultrasonic"]},"11":{"name":"Passivation","acts":["Passivation","Plant"]},"12":{"name":"Final Packing","acts":["Packing","Final Packing"]},"13":{"name":"Shipment","acts":["Shipment"]}}};
+
+function fmOutputs(){
+  // average pieces a day per activity, added across every family
+  const out={};
+  if(!DATA||!DATA.famOut) return out;
+  Object.keys(DATA.famOut).forEach(function(fam){
+    const o=DATA.famOut[fam];
+    const active=o.days.filter(function(d){return d.total>0;});
+    const nd=Math.max(1,active.length);
+    o.acts.forEach(function(a){
+      let t=0;
+      o.days.forEach(function(d){ t+=d.v[a]||0; });
+      out[a]=(out[a]||0)+t/nd;
+    });
+  });
+  return out;
+}
+function fmStepOutput(step,acts){
+  const o=fmOutputs();
+  let v=0, found=false;
+  (acts||[]).forEach(function(a){
+    Object.keys(o).forEach(function(k){
+      if(k.toLowerCase()===a.toLowerCase()){ v+=o[k]; found=true; }
+    });
+  });
+  return found?v:null;
+}
+
+function fmAnalyse(){
+  const where={};
+  FMAP.ground.forEach(function(r){ if(r.step) where[r.step]={floor:'ground',r:r}; });
+  FMAP.first.forEach(function(r){ if(r.step) where[r.step]={floor:'first',r:r}; });
+  const steps=Object.keys(FMAP.steps).map(Number).sort(function(a,b){return a-b;});
+  const hops=[];
+  for(let i=0;i<steps.length-1;i++){
+    const a=where[steps[i]], b=where[steps[i+1]];
+    if(!a||!b) continue;
+    if(a.floor!==b.floor) hops.push({from:steps[i],to:steps[i+1],
+      fromName:FMAP.steps[steps[i]].name,toName:FMAP.steps[steps[i+1]].name,
+      dir:a.floor==='ground'?'up':'down'});
+  }
+  // a room is out of place if the step before AND after it are both on the other floor
+  const stranded=[];
+  for(let i=1;i<steps.length-1;i++){
+    const p=where[steps[i-1]], c=where[steps[i]], n=where[steps[i+1]];
+    if(!p||!c||!n) continue;
+    if(p.floor===n.floor&&c.floor!==p.floor)
+      stranded.push({step:steps[i],name:FMAP.steps[steps[i]].name,
+                     on:c.floor,should:p.floor});
+  }
+  return {where:where,steps:steps,hops:hops,stranded:stranded};
+}
+
+function renderFactory(){
+  const box=$('#factorymap');
+  if(!box) return;
+  const A=fmAnalyse();
+  const avail=Math.max(300,(box.clientWidth||box.getBoundingClientRect().width||
+                            (window.innerWidth||1200)-56)-16);
+
+  /* Isometric projection. Everything is in world units first, then scaled
+     once so the whole drawing fills the width it has been given. */
+  const FLOORH=58;                          // how high the first floor floats
+  const HT=function(r){ return r.step?9:4.5; };
+  const floors=[{key:'first',rooms:FMAP.first,z:FLOORH,label:'FIRST FLOOR'},
+                {key:'ground',rooms:FMAP.ground,z:0,label:'GROUND FLOOR'}];
+  const raw=function(x,y,z){ return [(x-y)*0.87, (x+y)*0.5-z]; };
+  const extent=function(){
+    let a=1e9,b=-1e9,c=1e9,e=-1e9;
+    floors.forEach(function(f){
+      f.rooms.forEach(function(r){
+        [[r.x-5,r.y-5],[r.x+r.w+5,r.y-5],[r.x+r.w+5,r.y+r.h+5],[r.x-5,r.y+r.h+5]].forEach(function(q){
+          [f.z, f.z+HT(r)+9].forEach(function(z){
+            const p=raw(q[0],q[1],z);
+            if(p[0]<a)a=p[0]; if(p[0]>b)b=p[0];
+            if(p[1]<c)c=p[1]; if(p[1]>e)e=p[1];
+          });
+        });
+      });
+    });
+    return {minx:a,maxx:b,miny:c,maxy:e};
+  };
+  const E=extent();
+  const PAD=avail<700?14:26;
+  const K=(avail-PAD*2)/Math.max(1,(E.maxx-E.minx));
+  const P=function(x,y,z){ const p=raw(x,y,z); return [p[0]*K,p[1]*K]; };
+  const OX=PAD-E.minx*K, OY=PAD-E.miny*K;
+  const W=Math.round((E.maxx-E.minx)*K+PAD*2);
+  const H=Math.round((E.maxy-E.miny)*K+PAD*2+22);   // 22 for the floor caption
+  const S=function(x,y,z){ const p=P(x,y,z); return [(p[0]+OX).toFixed(1),(p[1]+OY).toFixed(1)]; };
+  const poly=function(pts){ return pts.map(function(p){return p[0]+','+p[1];}).join(' '); };
+
+  const COL=function(r,face){
+    if(!r.step) return face==='top'?'var(--panel2)':'var(--line)';
+    const s=A.stranded.filter(function(x){return x.step===r.step;}).length>0;
+    if(s) return face==='top'?'var(--overdue)':'var(--overdue)';
+    return face==='top'?'var(--purchase)':'var(--inprod)';
+  };
+
+  let svg='';
+  floors.forEach(function(f){
+    // faint plate under the floor
+    let px=1e9,py=1e9,qx=-1e9,qy=-1e9;
+    f.rooms.forEach(function(r){
+      px=Math.min(px,r.x); py=Math.min(py,r.y);
+      qx=Math.max(qx,r.x+r.w); qy=Math.max(qy,r.y+r.h);
+    });
+    svg+='<polygon class="floorplate" points="'+poly([
+      S(px-4,py-4,f.z),S(qx+4,py-4,f.z),S(qx+4,qy+4,f.z),S(px-4,qy+4,f.z)])+'"/>';
+    const lp=S(px-4,qy+4,f.z);
+    svg+='<text class="floorname" x="'+lp[0]+'" y="'+(+lp[1]+16)+'">'+f.label+'</text>';
+
+    // back to front so the boxes overlap correctly
+    const sorted=f.rooms.slice().sort(function(a,b){
+      return (a.x+a.y)-(b.x+b.y); });
+    sorted.forEach(function(r){
+      const ht=HT(r), z=f.z, t=z+ht;
+      const top=[S(r.x,r.y,t),S(r.x+r.w,r.y,t),S(r.x+r.w,r.y+r.h,t),S(r.x,r.y+r.h,t)];
+      const left=[S(r.x,r.y+r.h,t),S(r.x+r.w,r.y+r.h,t),S(r.x+r.w,r.y+r.h,z),S(r.x,r.y+r.h,z)];
+      const right=[S(r.x+r.w,r.y,t),S(r.x+r.w,r.y+r.h,t),S(r.x+r.w,r.y+r.h,z),S(r.x+r.w,r.y,z)];
+      const c=S(r.x+r.w/2,r.y+r.h/2,t);
+      const vacant=(r.kind==='vacant'), corridor=(r.kind==='corridor');
+      const op=r.step?1:(vacant?0.32:(corridor?0.4:0.62));
+      const out=r.step?fmStepOutput(r.step,FMAP.steps[r.step].acts):null;
+      svg+='<g class="room" data-room="'+r.n+'" data-step="'+(r.step||'')+'" opacity="'+op+'">'+
+        '<polygon class="rside" points="'+poly(left)+'" fill="'+COL(r,'side')+'" opacity=".45"/>'+
+        '<polygon class="rside" points="'+poly(right)+'" fill="'+COL(r,'side')+'" opacity=".62"/>'+
+        '<polygon class="rtop" points="'+poly(top)+'" fill="'+COL(r,'top')+
+        '" fill-opacity="'+(r.step?'.30':'.85')+'"/>';
+      if(r.step){
+        const b=S(r.x+3.5,r.y+3.5,t);
+        svg+='<circle cx="'+b[0]+'" cy="'+b[1]+'" r="7" fill="'+
+          (A.stranded.some(function(x){return x.step===r.step;})?'var(--overdue)':'var(--neon)')+'"/>'+
+          '<text class="badge" x="'+b[0]+'" y="'+(+b[1]+2.7)+'">'+r.step+'</text>';
+      }
+      svg+='<text class="rlbl'+(r.step?' big':'')+'" x="'+c[0]+'" y="'+
+        (+c[1]+(out!=null?-2:2))+'">'+
+        (r.n.length>19?r.n.slice(0,18)+'\u2026':r.n)+'</text>';
+      if(out!=null&&out>0) svg+='<text class="rout" x="'+c[0]+'" y="'+(+c[1]+9)+'">'+
+        fmt(Math.round(out))+'</text>';
+      svg+='<title>'+r.n+(r.step?' \u2014 step '+r.step:'')+
+        (out!=null&&out>0?' \u2014 '+fmt(Math.round(out))+' a day':'')+'</title></g>';
+    });
+  });
+
+  /* the road through the process, 1 to 13 */
+  let road='';
+  const pt=function(step){
+    const w=A.where[step]; if(!w) return null;
+    const f=(w.floor==='ground')?0:FLOORH;
+    return S(w.r.x+w.r.w/2, w.r.y+w.r.h/2, f+HT(w.r)+2);
+  };
+  for(let i=0;i<A.steps.length-1;i++){
+    const a=pt(A.steps[i]), b=pt(A.steps[i+1]);
+    if(!a||!b) continue;
+    const bad=A.hops.some(function(x){return x.from===A.steps[i];});
+    const mx=((+a[0])+(+b[0]))/2, my=((+a[1])+(+b[1]))/2-(bad?26:9);
+    const d='M'+a[0]+' '+a[1]+' Q'+mx.toFixed(1)+' '+my.toFixed(1)+' '+b[0]+' '+b[1];
+    if(bad) road+='<path class="hop" d="'+d+'"/>';
+    else road+='<path class="flowbase" d="'+d+'"/><path class="flowlane" d="'+d+'"/>';
+  }
+
+  box.innerHTML='<svg class="fm" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
+    '" preserveAspectRatio="xMinYMin meet">'+
+    '<defs><filter id="fmneon" x="-70%" y="-70%" width="240%" height="240%">'+
+    '<feGaussianBlur stdDeviation="2.2" result="b"/>'+
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'+
+    '</filter></defs>'+svg+road+'</svg>';
+
+  $('#maplegend').innerHTML=
+    '<span><i style="background:var(--purchase)"></i>production room</span>'+
+    '<span><i style="background:var(--overdue)"></i>on the wrong floor</span>'+
+    '<span><i style="background:var(--panel2);border:1px solid var(--line)"></i>other room</span>'+
+    '<span><i style="background:var(--neon)"></i>work flows this way</span>'+
+    '<span><i style="background:var(--neonhot)"></i>work changes floor here</span>'+
+    '<span style="color:var(--mute)">numbers on rooms are pieces a day</span>';
+
+  const nOut=A.steps.filter(function(s){
+    const v=fmStepOutput(s,FMAP.steps[s].acts); return v!=null&&v>0; }).length;
+  $('#mapnote').textContent=A.steps.length+' production rooms \u00b7 '+
+    (nOut?nOut+' reporting output':'no output figures yet')+' \u00b7 click a room';
+
+  /* what is in the wrong place */
+  let msg='';
+  if(A.hops.length){
+    msg+='Work changes floor <b>'+A.hops.length+' times</b> on its way through. '+
+      'Every change is a trolley, a staircase and a queue.<ol>';
+    A.hops.forEach(function(x){
+      msg+='<li>'+x.fromName+' (step '+x.from+') \u2192 '+x.toName+
+        ' (step '+x.to+') \u2014 goes '+x.dir+'</li>';
+    });
+    msg+='</ol>';
+  } else msg+='<span class="ok">Work never changes floor. The layout follows the process.</span>';
+  if(A.stranded.length){
+    msg+='<br><b>These rooms look misplaced.</b> The step before and the step after are '+
+      'both on the other floor, so the work goes across and straight back:<ol>';
+    A.stranded.forEach(function(s){
+      msg+='<li><b>'+s.name+'</b> (step '+s.step+') sits on the '+s.on+
+        ' floor but is surrounded by '+s.should+'-floor steps. '+
+        'Moving it would remove two floor changes.</li>';
+    });
+    msg+='</ol>';
+  }
+  $('#mapissues').innerHTML='<div class="mapissue">'+msg+'</div>';
+}
+
+function roomModal(name,step){
+  let room=null,floor='';
+  FMAP.ground.forEach(function(r){ if(r.n===name){room=r;floor='Ground floor';} });
+  FMAP.first.forEach(function(r){ if(r.n===name){room=r;floor='First floor';} });
+  if(!room) return;
+  const A=fmAnalyse();
+  const st=room.step?FMAP.steps[room.step]:null;
+  const out=st?fmStepOutput(room.step,st.acts):null;
+  const stranded=A.stranded.filter(function(x){return x.step===room.step;})[0];
+  let body='<div class="mstat">'+
+    '<div><div class="k">Floor</div><div class="v" style="font-size:15px">'+floor+'</div></div>'+
+    (room.step?'<div><div class="k">Step</div><div class="v">'+room.step+' of '+
+      A.steps.length+'</div></div>':'')+
+    (out!=null&&out>0?'<div><div class="k">Pieces a day</div><div class="v k">'+
+      fmt(Math.round(out))+'</div></div>':'')+
+    '<div><div class="k">Floor area</div><div class="v" style="font-size:15px">'+
+      fmt(room.w*room.h)+'</div></div></div>';
+  if(st){
+    const prev=room.step>1?FMAP.steps[room.step-1]:null;
+    const next=FMAP.steps[room.step+1];
+    body+='<table><tbody>'+
+      '<tr><td>Comes from</td><td><b>'+(prev?prev.name:'\u2014 first step')+'</b></td></tr>'+
+      '<tr><td>Goes to</td><td><b>'+(next?next.name:'\u2014 last step')+'</b></td></tr>'+
+      '<tr><td>Output read from</td><td>'+st.acts.join(', ')+'</td></tr>'+
+      '</tbody></table>';
+    if(stranded) body+='<div class="mapissue" style="margin-top:14px">'+
+      '<b>This room looks misplaced.</b><br>Step '+(room.step-1)+' and step '+(room.step+1)+
+      ' are both on the '+stranded.should+' floor, so work comes across to this room and '+
+      'goes straight back. Moving it would remove two floor changes.</div>';
+  } else {
+    body+='<p style="color:var(--dim);font-size:13px;margin-top:12px">'+
+      'Not a production room.</p>';
+  }
+  openModal(room.n, floor+(st?' \u00b7 step '+room.step:''), body);
+}
+
+document.addEventListener('click',function(e){
+  const g=e.target.closest('.fm g.room[data-room]');
+  if(g) roomModal(g.dataset.room, g.dataset.step);
 });
 
 /* ---------------- hubs, per family ----------------
@@ -1450,7 +1796,7 @@ function renderLine(){
     if(g.build<=0) return 'cold';
     return g.build>maxAvg*S.days*0.25?'hot':'';
   };
-  const laneCol=function(c){ return c==='hot'?'#FF3C6E':(c==='cold'?'#3CF2FF':'#F2FF3C'); };
+  const laneCol=function(c){ return c==='hot'?'var(--neonhot)':(c==='cold'?'var(--neoncold)':'var(--neon)'); };
   const short=function(d){ return d.length>14?d.slice(0,13)+'\u2026':d; };
   const DEFS='<defs><filter id="neon" x="-70%" y="-70%" width="240%" height="240%">'+
     '<feGaussianBlur stdDeviation="2.6" result="b"/>'+
@@ -1479,7 +1825,7 @@ function renderLine(){
       s+='<g><rect class="node'+(slow?' slow':'')+'" x="12" y="'+y(k)+
         '" width="'+NW+'" height="'+NH+'" rx="4"/>'+
         '<rect x="13" y="'+(y(k)+NH-6)+'" width="'+wpx.toFixed(1)+
-        '" height="4" rx="2" fill="'+(slow?'#FF2E63':'#2A9BFF')+'" opacity=".55"/>'+
+        '" height="4" rx="2" fill="'+(slow?'var(--overdue)':'var(--purchase)')+'" opacity=".55"/>'+
         '<text class="nm" x="24" y="'+(y(k)+27)+'" style="text-anchor:start">'+short(hb.hub)+'</text>'+
         '<text class="val" x="'+(W-24)+'" y="'+(y(k)+29)+'" style="text-anchor:end">'+
         fmt(Math.round(hb.avg))+'</text>'+
@@ -1510,7 +1856,7 @@ function renderLine(){
       nodes+='<g><rect class="node'+(slow?' slow':'')+'" x="'+x(k)+'" y="'+TOP+
         '" width="'+NW.toFixed(1)+'" height="'+NH+'" rx="4"/>'+
         '<rect x="'+(x(k)+1)+'" y="'+(TOP+NH-1-hpx)+'" width="'+(NW-2).toFixed(1)+
-        '" height="'+hpx.toFixed(1)+'" rx="3" fill="'+(slow?'#FF2E63':'#2A9BFF')+'" opacity=".22"/>'+
+        '" height="'+hpx.toFixed(1)+'" rx="3" fill="'+(slow?'var(--overdue)':'var(--purchase)')+'" opacity=".22"/>'+
         '<text class="val" x="'+(x(k)+NW/2).toFixed(1)+'" y="'+(TOP+30)+'">'+
         fmt(Math.round(hb.avg))+'</text>'+
         '<text class="unit" x="'+(x(k)+NW/2).toFixed(1)+'" y="'+(TOP+43)+'">PER DAY</text>'+
@@ -1620,12 +1966,12 @@ function renderTimeline(){
   /* Every bar starts in the board's own blue-to-violet process colours and
      ends in the urgency colour used everywhere else, so the timeline reads
      as part of the same board rather than a separate chart. */
-  const END={ontrack:'#2BFFB0',watch:'#FFD429',behind:'#FF7A1A',overdue:'#FF2E63'};
+  const END={ontrack:'var(--ontrack)',watch:'var(--watch)',behind:'var(--behind)',overdue:'var(--overdue)'};
   const defs=rows.map(r=>{
     const k=r.late?'overdue':(r.days<=14?'behind':(r.days<=45?'watch':'ontrack'));
     const end=END[k];
     return `<linearGradient id="${r.gid}" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%"  stop-color="#2A9BFF" stop-opacity=".85"/>
+      <stop offset="0%"  stop-color="var(--purchase)" stop-opacity=".85"/>
       <stop offset="45%" stop-color="#C77DFF" stop-opacity=".9"/>
       <stop offset="100%" stop-color="${end}"/>
     </linearGradient>
@@ -1670,7 +2016,7 @@ function renderTimeline(){
         fill="url(#s${r.gid})" style="animation-delay:${((r.y%7)*0.28).toFixed(2)}s"/></g>
       <rect class="ship cap${r.days<=14?' urgent':''}" x="${(r.end-2.5).toFixed(1)}"
             y="${(r.y+1).toFixed(1)}" width="3" height="21"
-            rx="1.5" fill="${r.late?'#FF2E63':(r.days<=14?'#FF7A1A':'#FFD429')}"/>
+            rx="1.5" fill="${r.late?'var(--overdue)':(r.days<=14?'var(--behind)':'var(--watch)')}"/>
       <text class="qty" x="${W-R+8}" y="${(r.y+13).toFixed(1)}">${narrow?r.dd.replace(/\s/,''):r.dd}</text>
       <text class="sub" x="${W-R+8}" y="${(r.y+24).toFixed(1)}">${r.late?Math.abs(r.days)+'d late':r.days+'d'}</text>
     </g>`).join('')}
@@ -1682,7 +2028,7 @@ function renderTimeline(){
 }
 
 /* ---------------- charts ---------------- */
-const PIE=['#2BFFB0','#2A9BFF','#C77DFF','#FFD429','#FF7A1A','#FF2E63','#3EE6E0','#A0FF6E','#FF9CE0','#7B8D9B'];
+const PIE=['var(--ontrack)','var(--purchase)','var(--inprod)','var(--watch)','var(--behind)','var(--overdue)','#3EE6E0','#A0FF6E','#FF9CE0','#7B8D9B'];
 
 function donut(parts,centre,label){
   const tot=parts.reduce((s,p)=>s+p.v,0)||1;
@@ -2325,6 +2671,27 @@ window.addEventListener('appinstalled',()=>$('#install').classList.add('hide'));
 $('#report').onclick=function(){ if(DATA) showReport(); };
 $('#pinreset').onclick=function(){ PINS=[]; savePins(); if(DATA) render(DATA); };
 
+/* ---------------- dark / light ---------------- */
+const THEMEKEY='phf_theme_v1';
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme',t);
+  const b=$('#theme'); if(b) b.textContent=(t==='light'?'Dark':'Light');
+  const m=document.querySelector('meta[name="theme-color"]');
+  if(m) m.setAttribute('content',t==='light'?'#F4F6F8':'#06080B');
+  jset(THEMEKEY,t);
+  if(DATA){
+    if(TAB==='timeline') renderTimeline();
+    if(TAB==='production') renderLine();
+    if(TAB==='factory'&&typeof renderFactory==='function') renderFactory();
+  }
+}
+applyTheme(jget(THEMEKEY)||'dark');
+document.addEventListener('click',function(e){
+  if(e.target.closest('#theme')){
+    applyTheme(document.documentElement.getAttribute('data-theme')==='light'?'dark':'light');
+  }
+});
+
 let rzT=null;
 window.addEventListener('resize',function(){
   clearTimeout(rzT);
@@ -2332,6 +2699,7 @@ window.addEventListener('resize',function(){
     if(!DATA) return;
     if(TAB==='timeline') renderTimeline();
     if(TAB==='production') renderLine();
+    if(TAB==='factory') renderFactory();
   },220);
 });
 window.addEventListener('orientationchange',function(){
