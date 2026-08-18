@@ -286,10 +286,19 @@ td b{color:var(--ink)}
   font-family:"IBM Plex Mono","Consolas",monospace}
 .fl .gapv{font-size:10px;font-weight:700;text-anchor:middle;
   font-family:"IBM Plex Mono","Consolas",monospace}
-@keyframes flowdash{to{stroke-dashoffset:-24}}
-.fl .pipe{stroke-width:9;fill:none;stroke-linecap:round}
-.fl .pulse{stroke-width:3;fill:none;stroke-dasharray:5 19;animation:flowdash 1.4s linear infinite}
-@media (prefers-reduced-motion:reduce){.fl .pulse{animation:none;opacity:.4}}
+@keyframes flowdash{to{stroke-dashoffset:-40}}
+@keyframes roadglow{0%,100%{opacity:.5}50%{opacity:.95}}
+.fl .road{stroke-width:14;fill:none;stroke-linecap:round;stroke:#0B1219}
+.fl .kerb{stroke-width:15.5;fill:none;stroke-linecap:round;opacity:.5}
+.fl .lane{stroke-width:2.5;fill:none;stroke:#F2FF3C;stroke-dasharray:9 11;
+  filter:url(#neon);animation:flowdash 1.15s linear infinite}
+.fl .lane.hot{stroke:#FF3C6E}
+.fl .lane.cold{stroke:#3CF2FF}
+.fl .kerb.glow{animation:roadglow 2.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .fl .lane{animation:none} .fl .kerb.glow{animation:none}
+}
+.fl .gapv{filter:url(#neon)}
 .bneck{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--overdue);
   padding:14px 16px;margin-bottom:12px;font-size:13.5px;line-height:1.7;color:var(--mute)}
 .bneck b{color:var(--overdue)}
@@ -308,6 +317,27 @@ td b{color:var(--ink)}
   font-weight:600;font-size:14px}
 .deptbar .p{text-align:right;font-family:"IBM Plex Mono","Consolas",monospace;
   font-size:12px;color:var(--dim)}
+
+.fampick{display:flex;gap:2px;margin-bottom:12px;flex-wrap:wrap}
+.fampick button{border:1px solid var(--line);background:var(--panel);color:var(--mute);
+  font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;padding:7px 13px;border-radius:2px}
+.fampick button.on{color:var(--void);background:var(--ontrack);border-color:var(--ontrack);
+  box-shadow:0 0 14px rgba(43,255,176,.45);font-weight:700}
+.hubs{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:11px}
+.hub{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--purchase);
+  padding:12px 14px;cursor:pointer;position:relative}
+.hub:hover{border-color:var(--dim)}
+.hub.slow{border-left-color:var(--overdue);
+  background:linear-gradient(100deg,rgba(255,46,99,.1),transparent 60%),var(--panel)}
+.hub .hn{font-family:"Archivo","Segoe UI",sans-serif;font-size:15px;font-weight:700}
+.hub .hv{font-size:26px;font-weight:700;font-family:"IBM Plex Mono","Consolas",monospace;
+  line-height:1.15;margin-top:3px}
+.hub.slow .hv{color:var(--overdue)}
+.hub .hd{font-size:11px;color:var(--dim);margin-top:4px;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.hub .out{display:inline-block;font-size:9.5px;letter-spacing:.1em;padding:1px 6px;margin-top:7px;
+  border:1px solid rgba(199,125,255,.45);color:var(--inprod);border-radius:2px;
+  font-family:"IBM Plex Mono","Consolas",monospace}
 
 /* ---------------- shipping timeline ---------------- */
 .tl{background:var(--panel);border:1px solid var(--line);padding:16px 18px 12px;overflow-x:auto}
@@ -460,7 +490,7 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
     <div class="src hide" id="srcbox">
       <span class="dot" id="dot"></span><span id="srctext"></span>
       <span id="checktext" style="color:var(--dim)"></span>
-      <button id="report">Daily report</button>
+      <button id="report">Daily plan</button>
       <button id="install" class="hide">Install app</button>
       <button id="reload">Refresh now</button>
       <button id="export">Export history</button>
@@ -499,8 +529,14 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
 
   <section data-tab="production">
     <div class="shead"><h2>Production line</h2><span id="flnote"></span></div>
+    <div class="fampick" id="fampick"></div>
     <div id="bneckbox"></div>
     <div class="flowwrap" id="flowdiag"></div>
+  </section>
+
+  <section data-tab="production" id="hubwrap">
+    <div class="shead"><h2>Hubs</h2><span id="hubnote"></span></div>
+    <div class="hubs" id="hubs"></div>
   </section>
 
   <section data-tab="production">
@@ -579,7 +615,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v15 · 17 Aug 2026';
+const VERSION='v16 · 18 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -705,6 +741,66 @@ function parse(wb,stamp){
         notes:String(r[k('Notes')]||'').trim()});
     }
   }
+  /* ---- Process Map: what the line is, per family ---- */
+  let pmap=null;
+  const pm=wb.Sheets['Process Map'];
+  if(pm){
+    const g=grid(pm);
+    let hr=-1;
+    for(let i2=0;i2<Math.min(g.length,6);i2++){
+      if((g[i2]||[]).some(c=>String(c||'').trim().toLowerCase()==='activity')){hr=i2;break;}
+    }
+    if(hr>=0){
+      const head=g[hr].map(c=>String(c||'').trim().toLowerCase());
+      const col=n=>head.indexOf(n);
+      const rows=[];
+      for(let i2=hr+1;i2<g.length;i2++){
+        const r=g[i2]||[];
+        const fam=String(r[col('family')]||'').trim();
+        const act=String(r[col('activity')]||'').trim();
+        if(!fam||!act) continue;
+        if(/^family$/i.test(fam)) continue;
+        rows.push({fam:fam,seq:num(r[col('seq')])||rows.length+1,
+                   hub:String(r[col('hub')]||'Other').trim(),
+                   act:act, by:String(r[col('done by')]||'').trim(),
+                   note:String(r[col('notes')]||'').trim()});
+      }
+      if(rows.length) pmap=rows;
+    }
+  }
+
+  /* ---- one output sheet per family: Date then a column per activity ---- */
+  let famOut=null;
+  if(pmap){
+    const fams=[];
+    pmap.forEach(function(r){ if(fams.indexOf(r.fam)<0) fams.push(r.fam); });
+    famOut={};
+    fams.forEach(function(fam){
+      const sh=wb.Sheets[fam+' Output'];
+      if(!sh) return;
+      const g=grid(sh);
+      if(!g.length) return;
+      const head=g[0].map(c=>String(c||'').trim());
+      const dc=head.findIndex(x=>/^date$/i.test(x));
+      const acts=[];
+      head.forEach(function(x,c){
+        if(!x||c===dc||/^remark/i.test(x)) return;
+        acts.push({c:c,act:x});
+      });
+      const days=[];
+      for(let i2=1;i2<g.length;i2++){
+        const r=g[i2]||[];
+        const d=toDate(r[dc<0?0:dc]);
+        if(!d) continue;
+        const v={}; let any=0;
+        acts.forEach(function(a){ const q=num(r[a.c]); if(q){ v[a.act]=q; any+=q; } });
+        days.push({date:d,v:v,total:any});
+      }
+      famOut[fam]={acts:acts.map(function(a){return a.act;}),days:days};
+    });
+  }
+
+  /* ---- older single Daily Output tab, still read if present ---- */
   /* ---- Daily Output: two header rows (departments, then families) ---- */
   let output=null;
   const os2=wb.Sheets['Daily Output'];
@@ -755,7 +851,7 @@ function parse(wb,stamp){
             week:num(find('working days per week'))||6,
             hol:num(find('holidays to deduct'))||0};
   }
-  return {orders,samples,target,output,stamp:stamp||Date.now()};
+  return {orders,samples,target,output,pmap:pmap,famOut:famOut,stamp:stamp||Date.now()};
 }
 
 /* ---------------- history ---------------- */
@@ -1100,6 +1196,153 @@ document.addEventListener('click',function(e){
   if(b) showTab(b.dataset.go);
 });
 
+/* ---------------- hubs, per family ----------------
+   The Process Map says what the line is; each family's output sheet says how
+   much came off it. Activities roll up into hubs in the order given by Seq.
+   ------------------------------------------------------------------------ */
+const FAMNAME={S:'Scissors',F:'Forceps',C:'Chimti',RF:'Ready Finish'};
+let FAM=null;
+
+function famList(){
+  if(!DATA||!DATA.pmap) return [];
+  const out=[];
+  DATA.pmap.forEach(function(r){ if(out.indexOf(r.fam)<0) out.push(r.fam); });
+  return out;
+}
+
+function hubStats(fam){
+  if(!DATA||!DATA.pmap||!DATA.famOut||!DATA.famOut[fam]) return null;
+  const steps=DATA.pmap.filter(function(r){return r.fam===fam;})
+                       .sort(function(a,b){return a.seq-b.seq;});
+  if(!steps.length) return null;
+  const out=DATA.famOut[fam];
+  const active=out.days.filter(function(d){return d.total>0;});
+  const nd=Math.max(1,active.length);
+
+  const perAct={};
+  steps.forEach(function(s){
+    let tot=0; const daily=[];
+    out.days.forEach(function(d){
+      const q=d.v[s.act]||0;
+      if(d.total>0) daily.push(q);
+      tot+=q;
+    });
+    const avg=tot/nd;
+    const sd=daily.length>1
+      ? Math.sqrt(daily.reduce(function(a,x){return a+(x-avg)*(x-avg);},0)/(daily.length-1)) : 0;
+    perAct[s.act]={act:s.act,hub:s.hub,by:s.by,seq:s.seq,total:tot,avg:avg,
+      max:daily.length?Math.max.apply(null,daily):0,
+      idle:daily.filter(function(x){return x===0;}).length,
+      cv:avg>0?sd/avg:0,
+      missing:out.acts.indexOf(s.act)<0};
+  });
+
+  // hubs in the order their first activity appears
+  const hubs=[];
+  steps.forEach(function(s){
+    let hb=null;
+    for(let i=0;i<hubs.length;i++) if(hubs[i].hub===s.hub) hb=hubs[i];
+    if(!hb){ hb={hub:s.hub,acts:[],total:0,avg:0,seq:s.seq,outsourced:[]}; hubs.push(hb); }
+    hb.acts.push(perAct[s.act]);
+    hb.total+=perAct[s.act].total;
+    if(s.by&&!/^in.?house$/i.test(s.by)&&hb.outsourced.indexOf(s.by)<0) hb.outsourced.push(s.by);
+  });
+  hubs.forEach(function(hb){
+    // a hub can only move as fast as its slowest running step
+    const running=hb.acts.filter(function(a){return a.total>0;});
+    hb.avg=running.length?Math.min.apply(null,running.map(function(a){return a.avg;})):0;
+    hb.thru=running.length?running[running.length-1].avg:0;
+    hb.slowAct=running.length?running.reduce(function(a,b){return a.avg<=b.avg?a:b;}):null;
+  });
+  const running=hubs.filter(function(hb){return hb.total>0;});
+  let slow=null;
+  running.forEach(function(hb){ if(!slow||hb.avg<slow.avg) slow=hb; });
+
+  const gaps=[];
+  for(let i=0;i<hubs.length-1;i++){
+    gaps.push({from:hubs[i].hub,to:hubs[i+1].hub,
+      build:(hubs[i].acts[hubs[i].acts.length-1].total)-(hubs[i+1].acts[0].total)});
+  }
+  return {fam:fam,steps:steps,perAct:perAct,hubs:hubs,gaps:gaps,days:nd,slow:slow,
+    firstDay:active.length?active[0].date:null,
+    lastDay:active.length?active[active.length-1].date:null,
+    lastHub:hubs[hubs.length-1],
+    noData:active.length===0};
+}
+
+function renderFamPick(){
+  const fams=famList();
+  if(!fams.length){ $('#fampick').innerHTML=''; return; }
+  if(!FAM||fams.indexOf(FAM)<0) FAM=fams[0];
+  $('#fampick').innerHTML=fams.map(function(f){
+    return '<button data-fam="'+f+'" class="'+(f===FAM?'on':'')+'">'+
+      (FAMNAME[f]||f)+'</button>';
+  }).join('');
+}
+
+function renderHubs(){
+  const S=hubStats(FAM);
+  const wrap=$('#hubwrap');
+  if(!S){ wrap.style.display='none'; $('#hubs').innerHTML=''; return; }
+  wrap.style.display='';
+  $('#hubnote').textContent=S.hubs.length+' hubs · '+S.steps.length+
+    ' activities · click a hub for the detail';
+  $('#hubs').innerHTML=S.hubs.map(function(hb){
+    const slow=(S.slow&&hb.hub===S.slow.hub);
+    return '<div class="hub'+(slow?' slow':'')+'" data-hub="'+hb.hub+'">'+
+      '<div class="hn">'+hb.hub+'</div>'+
+      '<div class="hv">'+fmt(Math.round(hb.avg))+'</div>'+
+      '<div class="hd">per day · '+hb.acts.length+' activit'+(hb.acts.length>1?'ies':'y')+
+      ' · '+fmt(hb.total)+' total</div>'+
+      (slow?'<div class="hd" style="color:var(--overdue)">slowest hub'+
+        (hb.slowAct?' — '+hb.slowAct.act:'')+'</div>':'')+
+      (hb.outsourced.length?'<div class="out">'+hb.outsourced.join(', ')+'</div>':'')+
+      '</div>';
+  }).join('');
+}
+
+function hubModal(name){
+  const S=hubStats(FAM);
+  if(!S) return;
+  let hb=null;
+  S.hubs.forEach(function(x){ if(x.hub===name) hb=x; });
+  if(!hb) return;
+  const rows=hb.acts.slice().sort(function(a,b){return a.seq-b.seq;});
+  openModal(hb.hub+' · '+(FAMNAME[FAM]||FAM),
+    fmt(Math.round(hb.avg))+' a day through the hub · '+rows.length+' activities · '+
+    S.days+' days recorded',
+    '<div class="mstat">'+
+      '<div><div class="k">Through the hub</div><div class="v">'+fmt(Math.round(hb.avg))+'</div></div>'+
+      '<div><div class="k">Total made</div><div class="v">'+fmt(hb.total)+'</div></div>'+
+      '<div><div class="k">Activities</div><div class="v">'+rows.length+'</div></div>'+
+      '<div><div class="k">Outsourced</div><div class="v i">'+
+        rows.filter(function(a){return a.by&&!/^in.?house$/i.test(a.by);}).length+'</div></div>'+
+    '</div>'+
+    '<table><thead><tr><th>#</th><th>Activity</th><th>Done by</th>'+
+    '<th style="text-align:right">Per day</th><th style="text-align:right">Total</th>'+
+    '<th style="text-align:right">Best day</th><th style="text-align:right">Idle days</th>'+
+    '<th style="text-align:right">Swing</th></tr></thead><tbody>'+
+    rows.map(function(a){
+      const col=a.cv>0.6?'var(--overdue)':(a.cv>0.3?'var(--watch)':'var(--ontrack)');
+      const ext=a.by&&!/^in.?house$/i.test(a.by);
+      return '<tr><td class="n">'+a.seq+'</td><td><b>'+a.act+'</b>'+
+        (a.missing?' <span style="color:var(--watch)">no column on the output sheet</span>':'')+
+        '</td>'+
+        '<td'+(ext?' style="color:var(--inprod)"':'')+'>'+(a.by||'—')+'</td>'+
+        '<td class="n"><b>'+fmt(Math.round(a.avg))+'</b></td>'+
+        '<td class="n">'+fmt(a.total)+'</td><td class="n">'+fmt(a.max)+'</td>'+
+        '<td class="n">'+a.idle+'</td>'+
+        '<td class="n" style="color:'+col+'">'+(a.total?Math.round(a.cv*100)+'%':'—')+'</td></tr>';
+    }).join('')+'</tbody></table>');
+}
+
+document.addEventListener('click',function(e){
+  const fb=e.target.closest('#fampick button[data-fam]');
+  if(fb){ FAM=fb.dataset.fam; renderFamPick(); renderLine(); renderHubs(); return; }
+  const hb=e.target.closest('.hub[data-hub]');
+  if(hb){ hubModal(hb.dataset.hub); return; }
+});
+
 /* ---------------- production line ----------------
    Departments are read left to right from the Daily Output tab, which is the
    order work actually flows in. Everything below follows from that.
@@ -1153,151 +1396,165 @@ function requiredPerDay(){
 }
 
 function renderLine(){
-  const S=lineStats();
-  if(!S){
-    $('#flnote').textContent='no data yet';
+  renderFamPick();
+  const S=hubStats(FAM);
+  if(!S||S.noData){
+    $('#flnote').textContent=S?'no output recorded yet':'no process map yet';
     $('#bneckbox').innerHTML='<div class="bneck" style="border-left-color:var(--line)">'+
-      'No <b style="color:var(--ink)">Daily Output</b> tab found in your sheet.<br>'+
-      'Add one with a row per day and a column per department, and this fills itself in.</div>';
+      (S?'Your <b style="color:var(--ink)">'+FAM+' Output</b> sheet has no figures in it yet.'
+        :'No <b style="color:var(--ink)">Process Map</b> sheet found.<br>'+
+         'Add it and one output sheet per family, and this section builds itself.')+'</div>';
     $('#flowdiag').innerHTML=''; $('#depts').innerHTML=''; $('#vartable').innerHTML='';
     $('#deptnote').textContent=''; $('#varnote').textContent='';
+    renderHubs();
     return;
   }
   const req=requiredPerDay();
   const range=(S.firstDay&&S.lastDay)
     ? new Date(S.firstDay).toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' \u2013 '+
       new Date(S.lastDay).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '';
-  $('#flnote').textContent=S.days+' working day'+(S.days>1?'s':'')+' recorded'+(range?' \u00b7 '+range:'');
+  $('#flnote').textContent=(FAMNAME[FAM]||FAM)+' \u00b7 '+S.days+' day'+(S.days>1?'s':'')+
+    ' recorded'+(range?' \u00b7 '+range:'');
 
-  const piles=S.gaps.filter(function(g){return g.build>0;}).sort(function(a,b){return b.build-a.build;});
-  const starved=S.gaps.filter(function(g){return g.build<0;}).sort(function(a,b){return a.build-b.build;});
+  const piles=S.gaps.filter(function(g){return g.build>0;})
+                    .sort(function(a,b){return b.build-a.build;});
   let msg='';
   if(piles.length){
-    const p=piles[0];
-    msg+='Work is piling up fastest <b>between '+p.from+' and '+p.to+'</b> \u2014 '+
-      fmt(p.build)+' pieces have gone into '+p.from+' that '+p.to+' has not taken out'+
-      (S.days>1?', about '+fmt(Math.round(p.perDay))+' a day':'')+'.<br>';
+    const pl=piles[0];
+    msg+='Work is piling up fastest <b>between '+pl.from+' and '+pl.to+'</b> \u2014 '+
+      fmt(pl.build)+' pieces waiting, about '+fmt(Math.round(pl.build/S.days))+' a day.<br>';
   }
-  if(S.slow) msg+='Slowest running department is <b>'+S.slow+'</b> at '+
-    fmt(Math.round(S.per[S.slow].avg))+' a day. Nothing downstream of it can go faster than that.<br>';
-  if(req) msg+='<span class="'+(S.lastAvg>=req.rate?'ok':'')+'">'+S.lastDept+' is averaging '+
-    fmt(Math.round(S.lastAvg))+' a day. To clear the order book by '+
-    req.end.toLocaleDateString('en-GB',{day:'numeric',month:'long'})+' you need '+
-    fmt(req.rate)+' a day'+
-    (S.lastAvg>=req.rate?' \u2014 you are ahead of that.':' \u2014 a shortfall of '+
-      fmt(req.rate-Math.round(S.lastAvg))+' a day.')+'</span>';
-  if(starved.length) msg+='<br><span style="color:var(--dim)">'+starved[0].to+
-    ' is taking out more than '+starved[0].from+' puts in, so it is drawing down a buffer.</span>';
+  if(S.slow) msg+='Slowest hub is <b>'+S.slow.hub+'</b> at '+fmt(Math.round(S.slow.avg))+
+    ' a day'+(S.slow.slowAct?', held by <b>'+S.slow.slowAct.act+'</b>':'')+
+    '. Nothing after it can go faster than that.<br>';
+  const lastAvg=S.lastHub?S.lastHub.avg:0;
+  if(req) msg+='<span class="'+(lastAvg>=req.rate?'ok':'')+'">'+
+    (S.lastHub?S.lastHub.hub:'The last hub')+' is averaging '+fmt(Math.round(lastAvg))+
+    ' a day for '+(FAMNAME[FAM]||FAM)+'. The whole order book needs '+fmt(req.rate)+
+    ' a day across every family to clear by '+
+    req.end.toLocaleDateString('en-GB',{day:'numeric',month:'long'})+'.</span>';
+  const ext=S.steps.filter(function(s){return s.by&&!/^in.?house$/i.test(s.by);});
+  if(ext.length) msg+='<br><span style="color:var(--dim)">'+ext.length+
+    ' of '+S.steps.length+' steps go outside: '+
+    ext.map(function(s){return s.act;}).slice(0,4).join(', ')+
+    (ext.length>4?'\u2026':'')+'</span>';
   $('#bneckbox').innerHTML='<div class="bneck">'+(msg||'Not enough data yet.')+'</div>';
 
   const box=$('#flowdiag');
   const avail=Math.max(280,(box.clientWidth||box.getBoundingClientRect().width||
                             (window.innerWidth||1200)-56)-2);
-  const n=S.o.depts.length;
+  const hubs=S.hubs, n=hubs.length;
   const W=Math.round(avail);
-  const maxAvg=Math.max.apply(null,[1].concat(S.o.depts.map(function(d){return S.per[d].avg;})));
-  const gapCol=function(g){
-    if(g.build<=0) return '#2A9BFF';
-    return g.build>maxAvg*S.days*0.25?'#FF2E63':'#FF7A1A';
+  const maxAvg=Math.max.apply(null,[1].concat(hubs.map(function(x){return x.avg;})));
+  const laneCls=function(g){
+    if(g.build<=0) return 'cold';
+    return g.build>maxAvg*S.days*0.25?'hot':'';
   };
-  const short=function(d){ return d.length>13?d.slice(0,12)+'\u2026':d; };
+  const laneCol=function(c){ return c==='hot'?'#FF3C6E':(c==='cold'?'#3CF2FF':'#F2FF3C'); };
+  const short=function(d){ return d.length>14?d.slice(0,13)+'\u2026':d; };
+  const DEFS='<defs><filter id="neon" x="-70%" y="-70%" width="240%" height="240%">'+
+    '<feGaussianBlur stdDeviation="2.6" result="b"/>'+
+    '<feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'+
+    '</filter></defs>';
   let svg='';
 
   if(avail<700){
-    /* a phone cannot fit ten boxes across, so the line runs down the screen */
-    const NH=44, GAPH=30, TOP=8, NW=W-24;
+    const NH=46, GAPH=40, TOP=8, NW=W-24;
     const H=TOP+n*NH+(n-1)*GAPH+14;
     let s='';
-    const y=function(i){ return TOP+i*(NH+GAPH); };
-    S.gaps.forEach(function(g,i){
-      const y1=y(i)+NH, y2=y(i+1), cx=12+NW*0.5;
-      const col=gapCol(g);
-      s+='<path class="pipe" d="M'+cx+' '+y1+' V'+y2+'" stroke="'+col+'" opacity=".3"/>'+
-         '<path class="pulse" d="M'+cx+' '+y1+' V'+y2+'" stroke="'+col+
-         '" style="animation-delay:'+(i*0.16).toFixed(2)+'s"/>'+
-         '<text class="gapv" x="'+(cx+14)+'" y="'+(y1+GAPH/2+4)+
-         '" fill="'+col+'" style="text-anchor:start">'+(g.build>0?'+':'')+fmt(g.build)+' waiting</text>';
+    const y=function(k){ return TOP+k*(NH+GAPH); };
+    S.gaps.forEach(function(g,k){
+      const y1=y(k)+NH, y2=y(k+1), cx=12+NW*0.5, cls=laneCls(g), col=laneCol(cls);
+      s+='<path class="road" d="M'+cx+' '+y1+' V'+y2+'"/>'+
+         '<path class="kerb glow" d="M'+cx+' '+y1+' V'+y2+'" stroke="'+col+
+         '" style="animation-delay:'+(k*0.3).toFixed(2)+'s"/>'+
+         '<path class="lane '+cls+'" d="M'+cx+' '+y1+' V'+y2+
+         '" style="animation-delay:'+(k*0.14).toFixed(2)+'s"/>'+
+         '<text class="gapv" x="'+(cx+16)+'" y="'+(y1+GAPH/2+4)+'" fill="'+col+
+         '" style="text-anchor:start">'+(g.build>0?'+':'')+fmt(g.build)+' waiting</text>';
     });
-    S.o.depts.forEach(function(d,i){
-      const p=S.per[d], slow=(d===S.slow);
-      const wpx=Math.max(3,(p.avg/maxAvg)*(NW-2));
-      s+='<g><rect class="node'+(slow?' slow':'')+'" x="12" y="'+y(i)+
+    hubs.forEach(function(hb,k){
+      const slow=(S.slow&&hb.hub===S.slow.hub);
+      const wpx=Math.max(3,(hb.avg/maxAvg)*(NW-2));
+      s+='<g><rect class="node'+(slow?' slow':'')+'" x="12" y="'+y(k)+
         '" width="'+NW+'" height="'+NH+'" rx="4"/>'+
-        '<rect x="13" y="'+(y(i)+NH-6)+'" width="'+wpx.toFixed(1)+'" height="4" rx="2" fill="'+
-        (slow?'#FF2E63':'#2A9BFF')+'" opacity=".5"/>'+
-        '<text class="nm" x="24" y="'+(y(i)+26)+'" style="text-anchor:start">'+short(d)+'</text>'+
-        '<text class="val" x="'+(W-24)+'" y="'+(y(i)+28)+'" style="text-anchor:end">'+
-        fmt(Math.round(p.avg))+'</text>'+
-        '<title>'+d+' \u2014 '+fmt(p.total)+' total, '+fmt(Math.round(p.avg))+'/day'+
-        (slow?' \u2014 slowest running department':'')+'</title></g>';
+        '<rect x="13" y="'+(y(k)+NH-6)+'" width="'+wpx.toFixed(1)+
+        '" height="4" rx="2" fill="'+(slow?'#FF2E63':'#2A9BFF')+'" opacity=".55"/>'+
+        '<text class="nm" x="24" y="'+(y(k)+27)+'" style="text-anchor:start">'+short(hb.hub)+'</text>'+
+        '<text class="val" x="'+(W-24)+'" y="'+(y(k)+29)+'" style="text-anchor:end">'+
+        fmt(Math.round(hb.avg))+'</text>'+
+        '<title>'+hb.hub+' \u2014 '+fmt(Math.round(hb.avg))+'/day, '+fmt(hb.total)+' total</title></g>';
     });
     svg='<svg class="fl" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
-      '" preserveAspectRatio="xMinYMin meet">'+s+'</svg>';
+      '" preserveAspectRatio="xMinYMin meet">'+DEFS+s+'</svg>';
   } else {
-    const NW=Math.max(70,Math.min(128,(avail-24)/n-14));
-    const GAP=Math.max(14,(avail-24-NW*n)/Math.max(1,n-1));
-    const NH=62, TOP=30, H=TOP+NH+58;
-    const x=function(i){ return 12+i*(NW+GAP); };
-    let pipes='',nodes='';
-    S.gaps.forEach(function(g,i){
-      const x1=x(i)+NW, x2=x(i+1), yy=TOP+NH/2;
+    const NW=Math.max(78,Math.min(140,(avail-24)/n-16));
+    const GAP=Math.max(20,(avail-24-NW*n)/Math.max(1,n-1));
+    const NH=64, TOP=32, H=TOP+NH+58;
+    const x=function(k){ return 12+k*(NW+GAP); };
+    let roads='',nodes='';
+    S.gaps.forEach(function(g,k){
+      const x1=x(k)+NW, x2=x(k+1), yy=TOP+NH/2, cls=laneCls(g), col=laneCol(cls);
       if(x2<=x1) return;
-      const col=gapCol(g);
-      pipes+='<path class="pipe" d="M'+x1.toFixed(1)+' '+yy+' H'+x2.toFixed(1)+
-        '" stroke="'+col+'" opacity=".3"/>'+
-        '<path class="pulse" d="M'+x1.toFixed(1)+' '+yy+' H'+x2.toFixed(1)+'" stroke="'+col+
-        '" style="animation-delay:'+(i*0.16).toFixed(2)+'s"/>'+
-        '<text class="gapv" x="'+((x1+x2)/2).toFixed(1)+'" y="'+(TOP+NH+16)+'" fill="'+col+'">'+
-        (g.build>0?'+':'')+fmt(g.build)+'</text>';
+      roads+='<path class="road" d="M'+x1.toFixed(1)+' '+yy+' H'+x2.toFixed(1)+'"/>'+
+        '<path class="kerb glow" d="M'+x1.toFixed(1)+' '+yy+' H'+x2.toFixed(1)+
+        '" stroke="'+col+'" style="animation-delay:'+(k*0.3).toFixed(2)+'s"/>'+
+        '<path class="lane '+cls+'" d="M'+x1.toFixed(1)+' '+yy+' H'+x2.toFixed(1)+
+        '" style="animation-delay:'+(k*0.14).toFixed(2)+'s"/>'+
+        '<text class="gapv" x="'+((x1+x2)/2).toFixed(1)+'" y="'+(TOP+NH+18)+
+        '" fill="'+col+'">'+(g.build>0?'+':'')+fmt(g.build)+'</text>';
     });
-    S.o.depts.forEach(function(d,i){
-      const p=S.per[d], slow=(d===S.slow);
-      const hpx=Math.max(3,(p.avg/maxAvg)*(NH-26));
-      nodes+='<g><rect class="node'+(slow?' slow':'')+'" x="'+x(i)+'" y="'+TOP+
+    hubs.forEach(function(hb,k){
+      const slow=(S.slow&&hb.hub===S.slow.hub);
+      const hpx=Math.max(3,(hb.avg/maxAvg)*(NH-26));
+      nodes+='<g><rect class="node'+(slow?' slow':'')+'" x="'+x(k)+'" y="'+TOP+
         '" width="'+NW.toFixed(1)+'" height="'+NH+'" rx="4"/>'+
-        '<rect x="'+(x(i)+1)+'" y="'+(TOP+NH-1-hpx)+'" width="'+(NW-2).toFixed(1)+
+        '<rect x="'+(x(k)+1)+'" y="'+(TOP+NH-1-hpx)+'" width="'+(NW-2).toFixed(1)+
         '" height="'+hpx.toFixed(1)+'" rx="3" fill="'+(slow?'#FF2E63':'#2A9BFF')+'" opacity=".22"/>'+
-        '<text class="val" x="'+(x(i)+NW/2).toFixed(1)+'" y="'+(TOP+28)+'">'+fmt(Math.round(p.avg))+'</text>'+
-        '<text class="unit" x="'+(x(i)+NW/2).toFixed(1)+'" y="'+(TOP+41)+'">PER DAY</text>'+
-        '<text class="nm" x="'+(x(i)+NW/2).toFixed(1)+'" y="'+(TOP-10)+'">'+short(d)+'</text>'+
-        '<title>'+d+' \u2014 '+fmt(p.total)+' total, '+fmt(Math.round(p.avg))+
-        '/day, best day '+fmt(p.max)+(slow?' \u2014 slowest running department':'')+'</title></g>';
+        '<text class="val" x="'+(x(k)+NW/2).toFixed(1)+'" y="'+(TOP+30)+'">'+
+        fmt(Math.round(hb.avg))+'</text>'+
+        '<text class="unit" x="'+(x(k)+NW/2).toFixed(1)+'" y="'+(TOP+43)+'">PER DAY</text>'+
+        '<text class="nm" x="'+(x(k)+NW/2).toFixed(1)+'" y="'+(TOP-10)+'">'+short(hb.hub)+'</text>'+
+        '<title>'+hb.hub+' \u2014 '+fmt(Math.round(hb.avg))+'/day, '+fmt(hb.total)+' total'+
+        (slow?' \u2014 slowest hub':'')+'</title></g>';
     });
     svg='<svg class="fl" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
-      '" preserveAspectRatio="xMinYMin meet">'+pipes+nodes+
+      '" preserveAspectRatio="xMinYMin meet">'+DEFS+roads+nodes+
       '<text class="unit" x="12" y="'+(H-6)+'" style="text-anchor:start">'+
-      'NUMBER BETWEEN TWO DEPARTMENTS = PIECES WAITING BETWEEN THEM</text></svg>';
+      'NUMBER ON THE ROAD = PIECES WAITING BETWEEN TWO HUBS</text></svg>';
   }
   box.innerHTML=svg;
 
-  const need=req?req.rate:0;
-  const top=Math.max(maxAvg,need||0)*1.1;
-  $('#deptnote').textContent=need?('white line = '+fmt(need)+' a day needed'):'average per working day';
-  $('#depts').innerHTML=S.o.depts.map(function(d){
-    const p=S.per[d], w=(p.avg/top*100).toFixed(1), under=need&&p.avg<need;
-    return '<div class="deptbar"><div class="nm">'+d+'</div>'+
-      '<div class="dbar"><i class="'+(under?'under':'')+'" style="width:'+w+'%"></i>'+
-      (need?'<span class="need" style="left:'+(need/top*100).toFixed(1)+'%"></span>':'')+
-      '</div><div class="q">'+fmt(Math.round(p.avg))+'</div>'+
-      '<div class="p">'+fmt(p.total)+'</div></div>';
+  const acts=S.steps.map(function(s){return S.perAct[s.act];});
+  const top=Math.max.apply(null,[1].concat(acts.map(function(a){return a.avg;})))*1.1;
+  $('#deptnote').textContent=(FAMNAME[FAM]||FAM)+' \u00b7 average per day, in process order';
+  $('#depts').innerHTML=acts.map(function(a){
+    const w=(a.avg/top*100).toFixed(1);
+    const ex=a.by&&!/^in.?house$/i.test(a.by);
+    return '<div class="deptbar"><div class="nm">'+a.act+
+      (ex?'<br><span style="font-size:10.5px;color:var(--inprod)">'+a.by+'</span>':'')+'</div>'+
+      '<div class="dbar"><i style="width:'+w+'%"></i></div>'+
+      '<div class="q">'+fmt(Math.round(a.avg))+'</div>'+
+      '<div class="p">'+fmt(a.total)+'</div></div>';
   }).join('');
 
-  const rows=S.o.depts.map(function(d){return S.per[d];})
-    .filter(function(p){return p.total>0;}).sort(function(a,b){return b.cv-a.cv;});
+  const rows=acts.filter(function(a){return a.total>0;})
+                 .sort(function(a,b){return b.cv-a.cv;});
   $('#varnote').textContent=S.days<5?'needs about a week of days to mean much'
-    :'how much each department swings from day to day';
-  $('#vartable').innerHTML='<table><thead><tr><th>Department</th>'+
+    :'how much each activity swings from day to day';
+  $('#vartable').innerHTML='<table><thead><tr><th>Activity</th><th>Hub</th><th>Done by</th>'+
     '<th style="text-align:right">Average/day</th><th style="text-align:right">Best day</th>'+
     '<th style="text-align:right">Days idle</th><th style="text-align:right">Swing</th>'+
-    '<th>Reading</th></tr></thead><tbody>'+
-    rows.map(function(p){
-      const lvl=p.cv>0.6?'very uneven':(p.cv>0.3?'uneven':'steady');
-      const col=p.cv>0.6?'var(--overdue)':(p.cv>0.3?'var(--watch)':'var(--ontrack)');
-      return '<tr><td><b>'+p.dept+'</b></td><td class="n">'+fmt(Math.round(p.avg))+'</td>'+
-        '<td class="n">'+fmt(p.max)+'</td><td class="n">'+p.idle+'</td>'+
-        '<td class="n" style="color:'+col+'">'+Math.round(p.cv*100)+'%</td>'+
-        '<td style="color:'+col+'">'+lvl+'</td></tr>';
+    '</tr></thead><tbody>'+
+    rows.map(function(a){
+      const col=a.cv>0.6?'var(--overdue)':(a.cv>0.3?'var(--watch)':'var(--ontrack)');
+      return '<tr><td><b>'+a.act+'</b></td><td>'+a.hub+'</td><td>'+(a.by||'\u2014')+'</td>'+
+        '<td class="n">'+fmt(Math.round(a.avg))+'</td><td class="n">'+fmt(a.max)+'</td>'+
+        '<td class="n">'+a.idle+'</td>'+
+        '<td class="n" style="color:'+col+'">'+Math.round(a.cv*100)+'%</td></tr>';
     }).join('')+'</tbody></table>';
+
+  renderHubs();
 }
 
 /* ---------------- shipping timeline ----------------
@@ -1524,144 +1781,219 @@ function renderCapacity(){
 /* ---------------- daily report ----------------
    Production only — no sampling, no complaints. Written to be pasted
    straight into a message to the production manager. ------------------- */
-function dailyReport(){
-  const today=new Date(); today.setHours(0,0,0,0);
-  const dstr=today.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const dated=LIVE.filter(o=>o.ddate);
-  const within=n=>dated.filter(o=>{const d=Math.round((new Date(o.ddate)-today)/DAY);return d>=0&&d<=n;});
-  const late=dated.filter(o=>new Date(o.ddate)<today);
-  const risk=LIVE.filter(o=>o.r.k==='overdue'||o.r.k==='behind');
-  const bal=LIVE.reduce((s,o)=>s+o.bal,0);
-
-  // capacity, using the target on the Targets sheet
-  let capLine='';
-  if(DATA.target&&DATA.target.date){
-    const end=new Date(DATA.target.date);
-    if(end>=today){
-      const days=workingDays(today,end,DATA.target.week,DATA.target.hol);
-      capLine='To finish everything by '+end.toLocaleDateString('en-GB',{day:'numeric',month:'long'})+
-        ' we need '+fmt(Math.ceil(bal/days))+' pieces packed per working day ('+days+' days left).';
-    }
+/* ---------------- daily plans, one per job ----------------
+   Short, plain, and about today. Production only. --------------------- */
+function planHeader(who){
+  const d=new Date();
+  const L=['PLAN FOR '+who.toUpperCase(),
+           d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}),
+           ''.padEnd(46,'-'),''];
+  const urg=LIVE.filter(function(o){return PINS.indexOf(o.id)>=0;});
+  if(urg.length){
+    L.push('** MARKED URGENT **');
+    urg.forEach(function(o){
+      L.push('   '+o.id+' ('+o.cust+')  '+fmt(o.bal)+' pieces left  -  '+dueText(o));
+    });
+    L.push('');
   }
+  return L;
+}
+function daysLeft(o){
+  if(!o.ddate) return null;
+  const t=new Date(); t.setHours(0,0,0,0);
+  return Math.round((new Date(o.ddate)-t)/DAY);
+}
+function urgentTag(o){ return PINS.indexOf(o.id)<0?'':'  ** URGENT **'; }
+function dueText(o){
+  const dl=daysLeft(o);
+  if(dl===null) return 'no date set';
+  if(dl<0) return Math.abs(dl)+' DAYS LATE';
+  if(dl===0) return 'DUE TODAY';
+  return dl+' days left';
+}
 
-  // by customer
-  const cust={};
-  LIVE.forEach(o=>{
-    const c=cust[o.cust]||(cust[o.cust]={orders:0,bal:0,pur:0,inp:0,due:null,risk:0});
-    c.orders++; c.bal+=o.bal; c.pur+=o.pur+o.none; c.inp+=o.inp;
-    if(o.r.k==='overdue'||o.r.k==='behind') c.risk++;
-    if(o.ddate&&(!c.due||new Date(o.ddate)<c.due)) c.due=new Date(o.ddate);
+function planPurchase(){
+  const L=planHeader('the purchase manager');
+  const rows=LIVE.map(function(o){
+    const waiting=o.pur+o.none;
+    return {o:o,w:waiting};
+  }).filter(function(r){return r.w>0;});
+  const tot=rows.reduce(function(s,r){return s+r.w;},0);
+  L.push('TOTAL WAITING TO BE PURCHASED: '+fmt(tot)+' pieces');
+  L.push('');
+  if(!rows.length){ L.push('Nothing waiting. All material is bought.'); return L.join('\n'); }
+  L.push('YOUR LIST, MOST URGENT FIRST');
+  L.push('');
+  rows.sort(function(a,b){
+    const pa=PINS.indexOf(a.o.id)<0?1:0, pb=PINS.indexOf(b.o.id)<0?1:0;
+    if(pa!==pb) return pa-pb;
+    const da=daysLeft(a.o), db=daysLeft(b.o);
+    if(da===null) return 1; if(db===null) return -1;
+    return da-db;
   });
-  const custRows=Object.entries(cust).map(([k,v])=>Object.assign({cust:k},v))
-    .sort((a,b)=>b.bal-a.bal);
-
-  // items holding up the most urgent orders
-  const urgent=dated.slice().sort((a,b)=>new Date(a.ddate)-new Date(b.ddate)).slice(0,6);
-  const blockers=[];
-  urgent.forEach(o=>o.items.forEach(i=>{
-    const b=i.qty-i.packed;
-    if(b>0) blockers.push({order:o.id,cust:o.cust,code:i.code,desc:i.desc,cat:i.cat,bal:b,
-      stage:i.inp>0?'in production':(i.pur>0?'at purchase':'not started'),
-      due:o.ddate});
-  }));
-  blockers.sort((a,b)=>b.bal-a.bal);
-
-  // items that have not moved, from the stored history
-  const fs=flowStats(DATA);
-  const stuck=fs.idle.filter(i=>i.days!=null&&i.days>=3).slice(0,10);
-
-  // families
-  const fam={};
-  LIVE.forEach(o=>o.items.forEach(i=>{const b=i.qty-i.packed;
-    if(b>0) fam[i.cat]=(fam[i.cat]||0)+b;}));
-  const famRows=Object.entries(fam).sort((a,b)=>b[1]-a[1]).slice(0,6);
-
-  const L=[];
-  L.push('PRODUCTION PLAN — '+dstr);
-  L.push('');
-  L.push('WHERE WE STAND');
-  L.push('  Live orders: '+LIVE.length+'   Pieces still to pack: '+fmt(bal));
-  L.push('  At purchase '+fmt(LIVE.reduce((s,o)=>s+o.pur+o.none,0))+
-         '   In production '+fmt(LIVE.reduce((s,o)=>s+o.inp,0))+
-         '   Packed '+fmt(LIVE.reduce((s,o)=>s+o.packed,0)));
-  if(capLine) L.push('  '+capLine);
-  L.push('');
-  L.push('NEEDS ATTENTION TODAY ('+risk.length+')');
-  if(!risk.length) L.push('  Nothing behind pace.');
-  risk.forEach(o=>{
-    const d=o.ddate?Math.round((new Date(o.ddate)-today)/DAY):null;
-    L.push('  '+o.id+' ('+o.cust+') — '+(d==null?'no date':(d<0?Math.abs(d)+' days LATE':d+' days left'))+
-      ' — '+fmt(o.bal)+' to pack, '+Math.round(o.pc*100)+'% done'+
-      (o.inp===0&&o.packed===0?'  [not started]':''));
+  rows.forEach(function(r,i){
+    const pc=tot?(r.w/tot*100):0;
+    const share=pc>=1?Math.round(pc)+'%':(pc>0?'under 1%':'0%');
+    L.push((i+1)+'. '+r.o.id+'  ('+r.o.cust+')'+urgentTag(r.o));
+    L.push('   Buy for: '+fmt(r.w)+' pieces   ('+share+' of all your work)');
+    L.push('   Ship date: '+(r.o.ddate
+      ? new Date(r.o.ddate).toLocaleDateString('en-GB',{day:'numeric',month:'long'}) : 'not set')+
+      '   -   '+dueText(r.o));
+    L.push('');
   });
-  L.push('');
-  L.push('SHIPMENT TIMELINE');
-  L.push('  Overdue: '+late.length+'   Next 7 days: '+within(7).length+
-         '   Next 30: '+within(30).length+'   Next 90: '+within(90).length);
-  dated.slice().sort((a,b)=>new Date(a.ddate)-new Date(b.ddate)).slice(0,8).forEach(o=>{
-    const d=Math.round((new Date(o.ddate)-today)/DAY);
-    L.push('  '+new Date(o.ddate).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+
-      '  '+o.id+' ('+o.cust+')  '+fmt(o.bal)+' to pack  '+
-      (d<0?Math.abs(d)+'d late':d+'d'));
-  });
-  L.push('');
-  L.push('CUSTOMER FOLLOW-UPS');
-  custRows.forEach(c=>{
-    L.push('  '+c.cust+' — '+c.orders+' order'+(c.orders>1?'s':'')+', '+fmt(c.bal)+' to pack'+
-      (c.due?', first due '+c.due.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'')+
-      (c.risk?'  [' +c.risk+' behind]':''));
-  });
-  L.push('');
-  L.push('ITEMS HOLDING UP THE NEAREST ORDERS');
-  if(!blockers.length) L.push('  None.');
-  blockers.slice(0,12).forEach(b=>{
-    L.push('  '+b.code+'  '+fmt(b.bal)+' pcs  '+b.stage+'  — '+b.order+' ('+b.cust+') due '+
-      new Date(b.due).toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
-    L.push('      '+b.desc.slice(0,72));
-  });
-  L.push('');
-  L.push('STUCK — NO MOVEMENT RECORDED');
-  if(!stuck.length) L.push('  Nothing flagged yet (the board needs a few days of history).');
-  stuck.forEach(i=>{
-    L.push('  '+i.code+'  '+fmt(i.bal)+' pcs  '+i.stage.toLowerCase()+
-      '  unchanged '+i.days+' days  — '+i.order);
-  });
-  L.push('');
-  L.push('WORKLOAD BY FAMILY');
-  famRows.forEach(f=>L.push('  '+f[0]+' — '+fmt(f[1])+' to pack'));
-  L.push('');
-  L.push('Figures from the production board at '+
-    new Date().toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+'.');
+  L.push(''.padEnd(46,'-'));
+  L.push('Buying must finish well before the ship date, because the pieces');
+  L.push('still have to be made and packed after you buy them.');
   return L.join('\n');
 }
 
+function planProduction(){
+  const L=planHeader('the production manager');
+  const inprod=LIVE.filter(function(o){return o.inp>0;});
+  const tot=LIVE.reduce(function(s,o){return s+o.inp;},0);
+  L.push('IN PRODUCTION RIGHT NOW: '+fmt(tot)+' pieces');
+  const bal=LIVE.reduce(function(s,o){return s+o.bal;},0);
+  const req=requiredPerDay();
+  if(req){
+    L.push('STILL TO FINISH: '+fmt(bal)+' pieces');
+    L.push('');
+    L.push('TO STAY ON TIME YOU MUST FINISH:');
+    L.push('   '+fmt(req.rate)+' pieces a day');
+    L.push('   '+fmt(req.rate*(DATA.target.week===5?5:6))+' pieces a week');
+    L.push('   '+fmt(req.rate*26)+' pieces a month');
+  }
+  L.push('');
+  L.push('BY CUSTOMER');
+  L.push('');
+  const cust={};
+  LIVE.forEach(function(o){
+    const c=cust[o.cust]||(cust[o.cust]={inp:0,bal:0,due:null,urgent:0,orders:[]});
+    c.inp+=o.inp; c.bal+=o.bal; c.orders.push(o.id);
+    if(PINS.indexOf(o.id)>=0) c.urgent++;
+    const dl=daysLeft(o);
+    if(dl!==null&&(c.due===null||dl<c.due)) c.due=dl;
+  });
+  Object.keys(cust).map(function(k){return Object.assign({cust:k},cust[k]);})
+    .sort(function(a,b){
+      if(a.urgent!==b.urgent) return b.urgent-a.urgent;
+      if(a.due===null) return 1; if(b.due===null) return -1;
+      return a.due-b.due; })
+    .forEach(function(c){
+      L.push(c.cust+(c.urgent?'  ** URGENT **':''));
+      L.push('   In production: '+fmt(c.inp)+'    Still to finish: '+fmt(c.bal));
+      L.push('   Nearest ship date: '+(c.due===null?'not set'
+        :(c.due<0?Math.abs(c.due)+' DAYS LATE':c.due+' days away')));
+      L.push('');
+    });
+  const risk=LIVE.filter(function(o){return o.r.k==='overdue'||o.r.k==='behind';});
+  if(risk.length){
+    L.push(''.padEnd(46,'-'));
+    L.push('THESE ARE FALLING BEHIND - GIVE THEM PEOPLE TODAY');
+    L.push('');
+    risk.forEach(function(o){
+      L.push('   '+o.id+' ('+o.cust+')  '+fmt(o.bal)+' left  -  '+dueText(o)+urgentTag(o));
+    });
+  }
+  const notStarted=LIVE.filter(function(o){return o.inp===0&&o.packed===0&&o.bal>0;});
+  if(notStarted.length){
+    L.push('');
+    L.push('NOT STARTED AT ALL');
+    notStarted.slice(0,8).forEach(function(o){
+      L.push('   '+o.id+' ('+o.cust+')  '+fmt(o.bal)+' pieces  -  '+dueText(o)+urgentTag(o));
+    });
+  }
+  return L.join('\n');
+}
+
+function planPacking(){
+  const L=planHeader('the packing supervisor');
+  const rows=LIVE.filter(function(o){return o.bal>0;}).map(function(o){
+    return {o:o,dl:daysLeft(o)};
+  }).sort(function(a,b){
+    const pa=PINS.indexOf(a.o.id)<0?1:0, pb=PINS.indexOf(b.o.id)<0?1:0;
+    if(pa!==pb) return pa-pb;
+    if(a.dl===null) return 1; if(b.dl===null) return -1;
+    return a.dl-b.dl;
+  });
+  const ready=rows.filter(function(r){return r.o.inp>0;});
+  L.push('PACKED SO FAR: '+fmt(LIVE.reduce(function(s,o){return s+o.packed;},0))+' pieces');
+  L.push('STILL TO PACK: '+fmt(LIVE.reduce(function(s,o){return s+o.bal;},0))+' pieces');
+  L.push('');
+  L.push('PACK THESE FIRST');
+  L.push('');
+  rows.slice(0,10).forEach(function(r,i){
+    const o=r.o;
+    L.push((i+1)+'. '+o.id+'  ('+o.cust+')'+urgentTag(o));
+    L.push('   To pack: '+fmt(o.bal)+' pieces      Done so far: '+Math.round(o.pc*100)+'%');
+    L.push('   Where it is now:  at purchase '+fmt(o.pur+o.none)+
+           '   |   in production '+fmt(o.inp)+'   |   packed '+fmt(o.packed));
+    L.push('   Ship date: '+(o.ddate
+      ? new Date(o.ddate).toLocaleDateString('en-GB',{day:'numeric',month:'long'}):'not set')+
+      '   -   '+dueText(o));
+    L.push('');
+  });
+  if(ready.length){
+    L.push(''.padEnd(46,'-'));
+    L.push('READY SOON - WORK IS ALREADY ON THE FLOOR FOR THESE');
+    ready.slice(0,6).forEach(function(r){
+      L.push('   '+r.o.id+' ('+r.o.cust+')  '+fmt(r.o.inp)+' pieces coming');
+    });
+  }
+  return L.join('\n');
+}
+
+const PLANS=[{k:'purchase',n:'Purchase manager',f:planPurchase},
+             {k:'production',n:'Production manager',f:planProduction},
+             {k:'packing',n:'Packing supervisor',f:planPacking}];
+let PLAN='purchase';
+
 function showReport(){
-  const txt=dailyReport();
-  openModal('Daily production plan',
-    'production only · copy and send to the shop floor',
+  const build=function(){
+    const p=PLANS.filter(function(x){return x.k===PLAN;})[0];
+    return p.f();
+  };
+  openModal('Daily plan','pick who it is for, then copy or send it',
+    '<div class="fampick" id="planpick">'+
+      PLANS.map(function(p){return '<button data-plan="'+p.k+'" class="'+
+        (p.k===PLAN?'on':'')+'">'+p.n+'</button>';}).join('')+'</div>'+
     '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">'+
-    '<button id="copyrep">Copy</button><button id="dlrep">Download</button>'+
-    '<span style="color:var(--dim);font-size:12px;align-self:center" id="repmsg"></span></div>'+
+      '<button id="copyrep">Copy</button><button id="warep">Send on WhatsApp</button>'+
+      '<button id="dlrep">Download</button>'+
+      '<span style="color:var(--dim);font-size:12px;align-self:center" id="repmsg"></span></div>'+
     '<pre id="reptext" style="white-space:pre-wrap;font-family:\'IBM Plex Mono\',Consolas,monospace;'+
-    'font-size:12.5px;line-height:1.65;color:var(--ink);background:var(--panel2);'+
+    'font-size:12.5px;line-height:1.7;color:var(--ink);background:var(--panel2);'+
     'border:1px solid var(--line);padding:16px;margin:0;overflow-x:auto"></pre>');
-  $('#reptext').textContent=txt;
+  const paint=function(){
+    $('#reptext').textContent=build();
+    document.querySelectorAll('#planpick button').forEach(function(b){
+      b.className=(b.dataset.plan===PLAN)?'on':'';
+    });
+  };
+  paint();
+  document.querySelectorAll('#planpick button').forEach(function(b){
+    b.onclick=function(){ PLAN=b.dataset.plan; paint(); };
+  });
   $('#copyrep').onclick=function(){
+    const txt=build();
     const done=function(){ $('#repmsg').textContent='copied'; };
     if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(txt).then(done,function(){fallback();});
+      navigator.clipboard.writeText(txt).then(done,fallback);
     } else fallback();
     function fallback(){
       const ta=document.createElement('textarea'); ta.value=txt;
       document.body.appendChild(ta); ta.select();
-      try{document.execCommand('copy'); done();}catch(e){$('#repmsg').textContent='select the text and copy';}
+      try{document.execCommand('copy'); done();}
+      catch(e){ $('#repmsg').textContent='select the text and copy'; }
       document.body.removeChild(ta);
     }
   };
+  $('#warep').onclick=function(){
+    window.open('https://wa.me/?text='+encodeURIComponent(build()),'_blank');
+  };
   $('#dlrep').onclick=function(){
-    const b=new Blob([txt],{type:'text/plain'});
+    const b=new Blob([build()],{type:'text/plain'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-    a.download='production-plan-'+new Date().toISOString().slice(0,10)+'.txt';
+    a.download='plan-'+PLAN+'-'+new Date().toISOString().slice(0,10)+'.txt';
     a.click(); URL.revokeObjectURL(a.href);
   };
 }
@@ -1875,7 +2207,8 @@ async function getViaTabs(id,fetchTab){
     names.push(v);
   }
   const Sheets={Orders:orders}, SheetNames=['Orders'];
-  const got=await Promise.all(names.concat(['Sampling','Targets','Daily Output'])
+  const got=await Promise.all(names.concat(['Sampling','Targets','Daily Output',
+      'Process Map','S Output','F Output','C Output','RF Output'])
     .map(n=>fetchTab(id,n).then(s=>[n,s]).catch(()=>null)));
   got.forEach(x=>{ if(x){Sheets[x[0]]=x[1]; SheetNames.push(x[0]);} });
   return {wb:{SheetNames,Sheets},sig:SheetNames.length+':'+JSON.stringify(g).length};
