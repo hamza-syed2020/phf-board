@@ -76,10 +76,14 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:22px;
   padding-bottom:13px;margin-bottom:18px;border-bottom:1px solid var(--line);position:relative}
 header::after{content:"";position:absolute;left:0;bottom:-1px;width:170px;height:1px;
   background:var(--ontrack);box-shadow:0 0 11px var(--ontrack)}
-.brand img{display:block;height:34px;width:auto;margin-bottom:9px;
+.brand img{display:block;height:62px;width:auto;margin-bottom:10px;
   filter:var(--logo);transition:filter .25s ease}
-.brand h1{font-size:27px;font-weight:800;line-height:1}
-@media (max-width:760px){ .brand img{height:26px;margin-bottom:7px} }
+.brand h1{font-size:12.5px;font-weight:600;line-height:1;letter-spacing:.26em;
+  text-transform:uppercase;color:var(--mute)}
+@media (max-width:760px){
+  .brand img{height:42px;margin-bottom:8px}
+  .brand h1{font-size:11px;letter-spacing:.18em}
+}
 .brand p{color:var(--mute);font-size:12.5px;margin-top:4px;letter-spacing:.05em}
 .rightbar{display:flex;align-items:flex-end;gap:22px;flex-wrap:wrap}
 .clock{text-align:right}.clock .d{font-size:19px;font-weight:600}
@@ -389,6 +393,16 @@ td b{color:var(--ink)}
 .fm .floorplate{fill:var(--panel2);stroke:var(--line);stroke-width:1;opacity:.55}
 .fm .rtop{stroke:var(--line);stroke-width:.8}
 .fm .rside{stroke:none}
+.floorblock{margin-bottom:14px}
+.floorblock:last-child{margin-bottom:0}
+.floorhead{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:10.5px;letter-spacing:.22em;color:var(--dim);padding:4px 2px 6px;
+  font-family:"IBM Plex Mono","Consolas",monospace;border-bottom:1px solid var(--line);
+  margin-bottom:8px}
+.floorhead span{letter-spacing:.08em}
+.fm .leave{fill:var(--neonhot);font-size:8.5px;text-anchor:middle;font-weight:700;
+  font-family:"IBM Plex Mono","Consolas",monospace}
+.fm.flat .rlbl{font-size:7.5px}
 .fm .rlbl{fill:var(--mute);font-size:7px;text-anchor:middle;
   font-family:"IBM Plex Mono","Consolas",monospace;pointer-events:none}
 .fm .rlbl.big{fill:var(--ink);font-size:8.4px;font-weight:600}
@@ -614,9 +628,20 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
 
   <section data-tab="factory">
     <div class="shead"><h2>Factory map</h2><span id="mapnote"></span></div>
-    <div id="mapissues"></div>
+    <div class="fampick" id="floorpick"></div>
     <div class="mapwrap" id="factorymap"></div>
     <div class="maplegend" id="maplegend"></div>
+  </section>
+
+  <section data-tab="factory">
+    <div class="shead"><h2>Flat plan</h2><span>the same floors seen from above</span></div>
+    <div class="mapwrap" id="factoryplan"></div>
+  </section>
+
+  <section data-tab="factory">
+    <div class="shead"><h2>What the layout costs you</h2>
+      <span>distance a single piece travels through all thirteen steps</span></div>
+    <div id="mapissues"></div>
   </section>
 
   <section data-tab="production">
@@ -707,7 +732,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v17 · 18 Aug 2026';
+const VERSION='v18 · 19 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -1290,215 +1315,348 @@ document.addEventListener('click',function(e){
 });
 
 /* ---------------- factory map ----------------
-   Two floors drawn in isometric, the first floor floating above the ground.
-   Rooms are extruded blocks; production rooms carry their step number and
-   whatever the output sheets say came off them. The neon road runs 1 to 13
-   and turns red wherever the work has to change floor. ------------------- */
+   One floor at a time by default, because two floors on one drawing is
+   unreadable. Flow arrows only ever join rooms on the SAME floor; a change
+   of floor is shown as a badge on the room you leave and the room you
+   arrive at, not as a line flying across the picture.
+   ------------------------------------------------------------------- */
 const FMAP={"ground":[{"n":"Garage","x":0,"y":0,"w":124,"h":48,"step":null,"kind":"room"},{"n":"Vendor Meeting","x":0,"y":57,"w":26,"h":22,"step":null,"kind":"room"},{"n":"PPC / Planning","x":26,"y":57,"w":28,"h":22,"step":null,"kind":"room"},{"n":"Receiving / Filing","x":54,"y":57,"w":28,"h":22,"step":2,"kind":"room"},{"n":"R & D","x":82,"y":57,"w":42,"h":22,"step":null,"kind":"room"},{"n":"Milling / Machining","x":132,"y":0,"w":74,"h":22,"step":1,"kind":"room"},{"n":"Fitting","x":132,"y":22,"w":20,"h":17,"step":4,"kind":"room"},{"n":"Sand Blasting","x":132,"y":39,"w":20,"h":17,"step":9,"kind":"room"},{"n":"Electro Polish","x":132,"y":56,"w":20,"h":25,"step":null,"kind":"room"},{"n":"Corridor","x":152,"y":22,"w":14,"h":59,"step":null,"kind":"corridor"},{"n":"Blade Grinding","x":170,"y":26,"w":18,"h":17,"step":3,"kind":"room"},{"n":"Ring Grinding","x":188,"y":26,"w":18,"h":17,"step":5,"kind":"room"},{"n":"Vacant","x":206,"y":26,"w":18,"h":17,"step":null,"kind":"vacant"},{"n":"Passivation","x":170,"y":43,"w":36,"h":19,"step":11,"kind":"room"},{"n":"Vacant","x":206,"y":43,"w":18,"h":19,"step":null,"kind":"vacant"},{"n":"Vacant","x":206,"y":62,"w":18,"h":19,"step":null,"kind":"vacant"},{"n":"Corridor","x":0,"y":79,"w":124,"h":10,"step":null,"kind":"corridor"}],"first":[{"n":"Bedroom","x":0,"y":0,"w":24,"h":20,"step":null,"kind":"room"},{"n":"Office","x":24,"y":0,"w":22,"h":20,"step":null,"kind":"room"},{"n":"Reception","x":46,"y":0,"w":24,"h":20,"step":null,"kind":"room"},{"n":"Bathroom","x":6,"y":20,"w":18,"h":14,"step":null,"kind":"room"},{"n":"Garage (open)","x":24,"y":20,"w":46,"h":36,"step":null,"kind":"open"},{"n":"Corridor","x":70,"y":14,"w":32,"h":8,"step":null,"kind":"corridor"},{"n":"Meeting Room","x":70,"y":22,"w":32,"h":22,"step":null,"kind":"room"},{"n":"E3","x":102,"y":12,"w":32,"h":32,"step":null,"kind":"room"},{"n":"Stock","x":134,"y":12,"w":52,"h":32,"step":null,"kind":"room"},{"n":"Office ?","x":150,"y":0,"w":20,"h":12,"step":null,"kind":"room"},{"n":"Corridor","x":170,"y":0,"w":22,"h":12,"step":null,"kind":"corridor"},{"n":"Final Packing","x":186,"y":12,"w":26,"h":32,"step":12,"kind":"room"},{"n":"Ultrasonic","x":192,"y":0,"w":24,"h":12,"step":10,"kind":"room"},{"n":"QC (Lab)","x":212,"y":30,"w":24,"h":14,"step":null,"kind":"room"},{"n":"Office","x":216,"y":0,"w":20,"h":12,"step":null,"kind":"room"},{"n":"QC","x":236,"y":0,"w":22,"h":12,"step":7,"kind":"room"},{"n":"Vacant","x":258,"y":0,"w":22,"h":12,"step":null,"kind":"vacant"},{"n":"Office","x":280,"y":0,"w":22,"h":12,"step":null,"kind":"room"},{"n":"Final Polish","x":236,"y":30,"w":16,"h":14,"step":8,"kind":"room"},{"n":"Rough Polish","x":252,"y":30,"w":50,"h":14,"step":6,"kind":"room"},{"n":"Marketing Sales","x":76,"y":54,"w":26,"h":20,"step":null,"kind":"room"},{"n":"Dir Office","x":102,"y":54,"w":22,"h":20,"step":null,"kind":"room"},{"n":"Shipment","x":134,"y":54,"w":82,"h":22,"step":13,"kind":"room"},{"n":"Accounts","x":20,"y":64,"w":28,"h":18,"step":null,"kind":"room"},{"n":"Export","x":48,"y":64,"w":24,"h":18,"step":null,"kind":"room"}],"steps":{"1":{"name":"Milling / Machining","acts":["Milling"]},"2":{"name":"Receiving / Filing","acts":["Filing","Receiving Out","Receiving"]},"3":{"name":"Blade Grinding","acts":["Inner Stone Grinding","Blade Grinding"]},"4":{"name":"Fitting","acts":["Fitting"]},"5":{"name":"Ring Grinding","acts":["Ring Grinding"]},"6":{"name":"Rough Polish","acts":["Rough Belt Grinding","Rough Polish","Polish"]},"7":{"name":"QC","acts":["QC"]},"8":{"name":"Final Polish","acts":["Final Polishing","Final Polish"]},"9":{"name":"Sand Blasting","acts":["Sand Blasting"]},"10":{"name":"Ultrasonic","acts":["Ultrasonic"]},"11":{"name":"Passivation","acts":["Passivation","Plant"]},"12":{"name":"Final Packing","acts":["Packing","Final Packing"]},"13":{"name":"Shipment","acts":["Shipment"]}}};
+const STAIRCOST=45;          // what one trip up or down the stairs is worth
+let FLOOR='ground';
 
+function fmWhere(){
+  const w={};
+  FMAP.ground.forEach(function(r){ if(r.step) w[r.step]={floor:'ground',r:r}; });
+  FMAP.first.forEach(function(r){ if(r.step) w[r.step]={floor:'first',r:r}; });
+  return w;
+}
+function fmSteps(){
+  return Object.keys(FMAP.steps).map(Number).sort(function(a,b){return a-b;});
+}
+function fmCentre(r){ return {x:r.x+r.w/2, y:r.y+r.h/2}; }
+function fmDist(a,b){
+  const dx=a.c.x-b.c.x, dy=a.c.y-b.c.y;
+  const flat=Math.sqrt(dx*dx+dy*dy);
+  return flat+(a.floor===b.floor?0:STAIRCOST);
+}
+function fmPlacement(over){
+  const w=fmWhere(), p={};
+  fmSteps().forEach(function(s){
+    if(!w[s]) return;
+    p[s]={floor:w[s].floor, c:fmCentre(w[s].r), name:w[s].r.n};
+  });
+  if(over) Object.keys(over).forEach(function(k){ p[k]=over[k]; });
+  return p;
+}
+function fmTotal(p){
+  const st=fmSteps(); let t=0;
+  for(let i=0;i<st.length-1;i++){
+    const a=p[st[i]], b=p[st[i+1]];
+    if(a&&b) t+=fmDist(a,b);
+  }
+  return t;
+}
+function fmVacant(){
+  const out=[];
+  FMAP.ground.forEach(function(r){ if(r.kind==='vacant') out.push({floor:'ground',r:r}); });
+  FMAP.first.forEach(function(r){ if(r.kind==='vacant') out.push({floor:'first',r:r}); });
+  return out;
+}
+
+function fmAnalyse(){
+  const w=fmWhere(), st=fmSteps(), p=fmPlacement();
+  const legs=[];
+  for(let i=0;i<st.length-1;i++){
+    const a=p[st[i]], b=p[st[i+1]];
+    if(!a||!b) continue;
+    legs.push({from:st[i],to:st[i+1],
+      fromName:FMAP.steps[st[i]].name, toName:FMAP.steps[st[i+1]].name,
+      cross:a.floor!==b.floor, dir:a.floor==='ground'?'up':'down',
+      dist:fmDist(a,b)});
+  }
+  const total=legs.reduce(function(s,l){return s+l.dist;},0);
+  const hops=legs.filter(function(l){return l.cross;});
+  const longest=legs.slice().sort(function(a,b){return b.dist-a.dist;}).slice(0,3);
+
+  // a room is stranded when the step before and after are both on the other floor
+  const stranded=[];
+  for(let i=1;i<st.length-1;i++){
+    const a=w[st[i-1]], c=w[st[i]], b=w[st[i+1]];
+    if(!a||!b||!c) continue;
+    if(a.floor===b.floor&&c.floor!==a.floor)
+      stranded.push({step:st[i],name:FMAP.steps[st[i]].name,on:c.floor,should:a.floor});
+  }
+
+  // try each production step in each empty room and see what it would save
+  const ideas=[];
+  const vac=fmVacant();
+  st.forEach(function(s){
+    if(!w[s]) return;
+    vac.forEach(function(v){
+      if(v.floor===w[s].floor&&v.r.n===w[s].r.n) return;
+      const alt=fmPlacement((function(){const o={};
+        o[s]={floor:v.floor,c:fmCentre(v.r),name:v.r.n}; return o;})());
+      const t=fmTotal(alt);
+      const saved=total-t;
+      if(saved>total*0.03) ideas.push({step:s,name:FMAP.steps[s].name,
+        toFloor:v.floor, room:v.r, saved:saved, pct:saved/total*100, newTotal:t});
+    });
+  });
+  ideas.sort(function(a,b){return b.saved-a.saved;});
+  const best=[]; const seen={};
+  ideas.forEach(function(x){ if(!seen[x.step]){ seen[x.step]=1; best.push(x); } });
+
+  return {where:w,steps:st,legs:legs,total:total,hops:hops,longest:longest,
+          stranded:stranded,ideas:best.slice(0,4),vacant:vac};
+}
+
+/* ---- daily output per room, from the family output sheets ---- */
 function fmOutputs(){
-  // average pieces a day per activity, added across every family
   const out={};
   if(!DATA||!DATA.famOut) return out;
   Object.keys(DATA.famOut).forEach(function(fam){
     const o=DATA.famOut[fam];
-    const active=o.days.filter(function(d){return d.total>0;});
-    const nd=Math.max(1,active.length);
+    const nd=Math.max(1,o.days.filter(function(d){return d.total>0;}).length);
     o.acts.forEach(function(a){
-      let t=0;
-      o.days.forEach(function(d){ t+=d.v[a]||0; });
+      let t=0; o.days.forEach(function(d){ t+=d.v[a]||0; });
       out[a]=(out[a]||0)+t/nd;
     });
   });
   return out;
 }
-function fmStepOutput(step,acts){
-  const o=fmOutputs();
+function fmStepOutput(step){
+  const o=fmOutputs(), acts=(FMAP.steps[step]||{}).acts||[];
   let v=0, found=false;
-  (acts||[]).forEach(function(a){
-    Object.keys(o).forEach(function(k){
-      if(k.toLowerCase()===a.toLowerCase()){ v+=o[k]; found=true; }
-    });
+  acts.forEach(function(a){
+    Object.keys(o).forEach(function(k){ if(k.toLowerCase()===a.toLowerCase()){v+=o[k];found=true;} });
   });
   return found?v:null;
 }
 
-function fmAnalyse(){
-  const where={};
-  FMAP.ground.forEach(function(r){ if(r.step) where[r.step]={floor:'ground',r:r}; });
-  FMAP.first.forEach(function(r){ if(r.step) where[r.step]={floor:'first',r:r}; });
-  const steps=Object.keys(FMAP.steps).map(Number).sort(function(a,b){return a-b;});
-  const hops=[];
-  for(let i=0;i<steps.length-1;i++){
-    const a=where[steps[i]], b=where[steps[i+1]];
-    if(!a||!b) continue;
-    if(a.floor!==b.floor) hops.push({from:steps[i],to:steps[i+1],
-      fromName:FMAP.steps[steps[i]].name,toName:FMAP.steps[steps[i+1]].name,
-      dir:a.floor==='ground'?'up':'down'});
-  }
-  // a room is out of place if the step before AND after it are both on the other floor
-  const stranded=[];
-  for(let i=1;i<steps.length-1;i++){
-    const p=where[steps[i-1]], c=where[steps[i]], n=where[steps[i+1]];
-    if(!p||!c||!n) continue;
-    if(p.floor===n.floor&&c.floor!==p.floor)
-      stranded.push({step:steps[i],name:FMAP.steps[steps[i]].name,
-                     on:c.floor,should:p.floor});
-  }
-  return {where:where,steps:steps,hops:hops,stranded:stranded};
+/* ---- one floor, drawn isometric ---- */
+function fmIso(rooms,label,width,A){
+  const HT=function(r){ return r.step?9:4; };
+  const raw=function(x,y,z){ return [(x-y)*0.87,(x+y)*0.5-z]; };
+  let a=1e9,b=-1e9,c=1e9,e=-1e9;
+  rooms.forEach(function(r){
+    [[r.x-5,r.y-5],[r.x+r.w+5,r.y-5],[r.x+r.w+5,r.y+r.h+5],[r.x-5,r.y+r.h+5]].forEach(function(q){
+      [0,HT(r)+10].forEach(function(z){
+        const p=raw(q[0],q[1],z);
+        if(p[0]<a)a=p[0]; if(p[0]>b)b=p[0]; if(p[1]<c)c=p[1]; if(p[1]>e)e=p[1];
+      });
+    });
+  });
+  const PAD=width<700?12:22;
+  const K=(width-PAD*2)/Math.max(1,(b-a));
+  const S=function(x,y,z){ const p=raw(x,y,z);
+    return [(p[0]*K+PAD-a*K).toFixed(1),(p[1]*K+PAD-c*K).toFixed(1)]; };
+  const W=Math.round((b-a)*K+PAD*2), H=Math.round((e-c)*K+PAD*2+20);
+  const poly=function(pts){ return pts.map(function(p){return p[0]+','+p[1];}).join(' '); };
+  const strand=function(s){ return A.stranded.some(function(x){return x.step===s;}); };
+
+  let g='';
+  rooms.slice().sort(function(x,y){return (x.x+x.y)-(y.x+y.y);}).forEach(function(r){
+    const ht=HT(r), t=ht;
+    const top=[S(r.x,r.y,t),S(r.x+r.w,r.y,t),S(r.x+r.w,r.y+r.h,t),S(r.x,r.y+r.h,t)];
+    const lf=[S(r.x,r.y+r.h,t),S(r.x+r.w,r.y+r.h,t),S(r.x+r.w,r.y+r.h,0),S(r.x,r.y+r.h,0)];
+    const rt=[S(r.x+r.w,r.y,t),S(r.x+r.w,r.y+r.h,t),S(r.x+r.w,r.y+r.h,0),S(r.x+r.w,r.y,0)];
+    const ctr=S(r.x+r.w/2,r.y+r.h/2,t);
+    const bad=r.step&&strand(r.step);
+    const fill=r.step?(bad?'var(--overdue)':'var(--purchase)'):'var(--panel2)';
+    const side=r.step?(bad?'var(--overdue)':'var(--inprod)'):'var(--line)';
+    const op=r.step?1:(r.kind==='vacant'?0.42:(r.kind==='corridor'?0.4:0.6));
+    const out=r.step?fmStepOutput(r.step):null;
+    g+='<g class="room" data-room="'+r.n+'" data-step="'+(r.step||'')+'" opacity="'+op+'">'+
+      '<polygon points="'+poly(lf)+'" fill="'+side+'" opacity=".42"/>'+
+      '<polygon points="'+poly(rt)+'" fill="'+side+'" opacity=".6"/>'+
+      '<polygon class="rtop" points="'+poly(top)+'" fill="'+fill+
+      '" fill-opacity="'+(r.step?'.32':'.85')+'"/>';
+    if(r.step){
+      const bp=S(r.x+4,r.y+4,t);
+      g+='<circle cx="'+bp[0]+'" cy="'+bp[1]+'" r="7.5" fill="'+
+        (bad?'var(--overdue)':'var(--neon)')+'"/>'+
+        '<text class="badge" x="'+bp[0]+'" y="'+(+bp[1]+2.8)+'">'+r.step+'</text>';
+    }
+    g+='<text class="rlbl'+(r.step?' big':'')+'" x="'+ctr[0]+'" y="'+
+      (+ctr[1]+(out!=null&&out>0?-2:2))+'">'+
+      (r.n.length>18?r.n.slice(0,17)+'\u2026':r.n)+'</text>';
+    if(out!=null&&out>0) g+='<text class="rout" x="'+ctr[0]+'" y="'+(+ctr[1]+9)+'">'+
+      fmt(Math.round(out))+'</text>';
+    g+='<title>'+r.n+(r.step?' \u2014 step '+r.step:'')+
+      (out!=null&&out>0?' \u2014 '+fmt(Math.round(out))+' a day':'')+'</title></g>';
+  });
+
+  // flow, only between rooms on this floor
+  let flow='';
+  const here={};
+  rooms.forEach(function(r){ if(r.step) here[r.step]=r; });
+  A.steps.forEach(function(s,i){
+    const n=A.steps[i+1]; if(!n) return;
+    if(here[s]&&here[n]){
+      const p1=S(here[s].x+here[s].w/2, here[s].y+here[s].h/2, HT(here[s])+3);
+      const p2=S(here[n].x+here[n].w/2, here[n].y+here[n].h/2, HT(here[n])+3);
+      flow+='<path class="flowbase" d="M'+p1[0]+' '+p1[1]+' L'+p2[0]+' '+p2[1]+'"/>'+
+            '<path class="flowlane" marker-end="url(#fmarrow)" d="M'+p1[0]+' '+p1[1]+
+            ' L'+p2[0]+' '+p2[1]+'"/>';
+    }
+  });
+  return {svg:'<svg class="fm" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
+    '" preserveAspectRatio="xMinYMin meet">'+FMDEFS+g+flow+'</svg>', w:W, h:H};
 }
+
+/* ---- one floor, drawn flat ---- */
+function fmPlan(rooms,label,width,A){
+  let a=1e9,b=-1e9,c=1e9,e=-1e9;
+  rooms.forEach(function(r){
+    a=Math.min(a,r.x); b=Math.max(b,r.x+r.w);
+    c=Math.min(c,r.y); e=Math.max(e,r.y+r.h);
+  });
+  const PAD=width<700?10:18;
+  const K=(width-PAD*2)/Math.max(1,(b-a));
+  const X=function(x){ return ((x-a)*K+PAD).toFixed(1); };
+  const Y=function(y){ return ((y-c)*K+PAD).toFixed(1); };
+  const W=Math.round((b-a)*K+PAD*2), H=Math.round((e-c)*K+PAD*2);
+  const strand=function(s){ return A.stranded.some(function(x){return x.step===s;}); };
+  let g='';
+  rooms.forEach(function(r){
+    const bad=r.step&&strand(r.step);
+    const fill=r.step?(bad?'var(--overdue)':'var(--purchase)'):'var(--panel2)';
+    const op=r.step?0.3:(r.kind==='vacant'?0.25:0.75);
+    const out=r.step?fmStepOutput(r.step):null;
+    g+='<g class="room" data-room="'+r.n+'" data-step="'+(r.step||'')+'">'+
+      '<rect x="'+X(r.x)+'" y="'+Y(r.y)+'" width="'+(r.w*K).toFixed(1)+
+      '" height="'+(r.h*K).toFixed(1)+'" fill="'+fill+'" fill-opacity="'+op+
+      '" stroke="'+(r.step?(bad?'var(--overdue)':'var(--purchase)'):'var(--line)')+
+      '" stroke-width="'+(r.step?1.4:0.8)+'" rx="2"/>';
+    const cx=X(r.x+r.w/2), cy=Y(r.y+r.h/2);
+    if(r.step){
+      g+='<circle cx="'+X(r.x+4)+'" cy="'+Y(r.y+4)+'" r="7.5" fill="'+
+        (bad?'var(--overdue)':'var(--neon)')+'"/>'+
+        '<text class="badge" x="'+X(r.x+4)+'" y="'+(+Y(r.y+4)+2.8)+'">'+r.step+'</text>';
+    }
+    g+='<text class="rlbl'+(r.step?' big':'')+'" x="'+cx+'" y="'+
+      (+cy+(out!=null&&out>0?-2:2))+'">'+
+      (r.n.length>18?r.n.slice(0,17)+'\u2026':r.n)+'</text>';
+    if(out!=null&&out>0) g+='<text class="rout" x="'+cx+'" y="'+(+cy+10)+'">'+
+      fmt(Math.round(out))+'</text>';
+    g+='<title>'+r.n+(r.step?' \u2014 step '+r.step:'')+'</title></g>';
+  });
+  let flow='';
+  const here={};
+  rooms.forEach(function(r){ if(r.step) here[r.step]=r; });
+  A.steps.forEach(function(s,i){
+    const n=A.steps[i+1]; if(!n) return;
+    if(here[s]&&here[n]){
+      const x1=X(here[s].x+here[s].w/2), y1=Y(here[s].y+here[s].h/2);
+      const x2=X(here[n].x+here[n].w/2), y2=Y(here[n].y+here[n].h/2);
+      flow+='<path class="flowbase" d="M'+x1+' '+y1+' L'+x2+' '+y2+'"/>'+
+            '<path class="flowlane" marker-end="url(#fmarrow)" d="M'+x1+' '+y1+
+            ' L'+x2+' '+y2+'"/>';
+    } else if(here[s]&&!here[n]){
+      const x1=X(here[s].x+here[s].w/2), y1=Y(here[s].y+here[s].h/2);
+      g+='<text class="leave" x="'+x1+'" y="'+(+y1+20)+'">'+
+        (label==='GROUND FLOOR'?'\u2191 upstairs':'\u2193 downstairs')+'</text>';
+    }
+  });
+  return {svg:'<svg class="fm flat" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
+    '" preserveAspectRatio="xMinYMin meet">'+FMDEFS+g+flow+'</svg>', w:W, h:H};
+}
+
+const FMDEFS='<defs><filter id="fmneon" x="-70%" y="-70%" width="240%" height="240%">'+
+  '<feGaussianBlur stdDeviation="2.2" result="b"/>'+
+  '<feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'+
+  '</filter>'+
+  '<marker id="fmarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" '+
+  'orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--neon)"/></marker></defs>';
 
 function renderFactory(){
   const box=$('#factorymap');
   if(!box) return;
   const A=fmAnalyse();
-  const avail=Math.max(300,(box.clientWidth||box.getBoundingClientRect().width||
+  const avail=Math.max(280,(box.clientWidth||box.getBoundingClientRect().width||
                             (window.innerWidth||1200)-56)-16);
+  const show=(FLOOR==='both')?['ground','first']:[FLOOR];
 
-  /* Isometric projection. Everything is in world units first, then scaled
-     once so the whole drawing fills the width it has been given. */
-  const FLOORH=58;                          // how high the first floor floats
-  const HT=function(r){ return r.step?9:4.5; };
-  const floors=[{key:'first',rooms:FMAP.first,z:FLOORH,label:'FIRST FLOOR'},
-                {key:'ground',rooms:FMAP.ground,z:0,label:'GROUND FLOOR'}];
-  const raw=function(x,y,z){ return [(x-y)*0.87, (x+y)*0.5-z]; };
-  const extent=function(){
-    let a=1e9,b=-1e9,c=1e9,e=-1e9;
-    floors.forEach(function(f){
-      f.rooms.forEach(function(r){
-        [[r.x-5,r.y-5],[r.x+r.w+5,r.y-5],[r.x+r.w+5,r.y+r.h+5],[r.x-5,r.y+r.h+5]].forEach(function(q){
-          [f.z, f.z+HT(r)+9].forEach(function(z){
-            const p=raw(q[0],q[1],z);
-            if(p[0]<a)a=p[0]; if(p[0]>b)b=p[0];
-            if(p[1]<c)c=p[1]; if(p[1]>e)e=p[1];
-          });
-        });
-      });
-    });
-    return {minx:a,maxx:b,miny:c,maxy:e};
-  };
-  const E=extent();
-  const PAD=avail<700?14:26;
-  const K=(avail-PAD*2)/Math.max(1,(E.maxx-E.minx));
-  const P=function(x,y,z){ const p=raw(x,y,z); return [p[0]*K,p[1]*K]; };
-  const OX=PAD-E.minx*K, OY=PAD-E.miny*K;
-  const W=Math.round((E.maxx-E.minx)*K+PAD*2);
-  const H=Math.round((E.maxy-E.miny)*K+PAD*2+22);   // 22 for the floor caption
-  const S=function(x,y,z){ const p=P(x,y,z); return [(p[0]+OX).toFixed(1),(p[1]+OY).toFixed(1)]; };
-  const poly=function(pts){ return pts.map(function(p){return p[0]+','+p[1];}).join(' '); };
+  $('#floorpick').innerHTML=[['ground','Ground floor'],['first','First floor'],
+    ['both','Both']].map(function(f){
+    return '<button data-floor="'+f[0]+'" class="'+(FLOOR===f[0]?'on':'')+'">'+f[1]+'</button>';
+  }).join('');
 
-  const COL=function(r,face){
-    if(!r.step) return face==='top'?'var(--panel2)':'var(--line)';
-    const s=A.stranded.filter(function(x){return x.step===r.step;}).length>0;
-    if(s) return face==='top'?'var(--overdue)':'var(--overdue)';
-    return face==='top'?'var(--purchase)':'var(--inprod)';
-  };
-
-  let svg='';
-  floors.forEach(function(f){
-    // faint plate under the floor
-    let px=1e9,py=1e9,qx=-1e9,qy=-1e9;
-    f.rooms.forEach(function(r){
-      px=Math.min(px,r.x); py=Math.min(py,r.y);
-      qx=Math.max(qx,r.x+r.w); qy=Math.max(qy,r.y+r.h);
-    });
-    svg+='<polygon class="floorplate" points="'+poly([
-      S(px-4,py-4,f.z),S(qx+4,py-4,f.z),S(qx+4,qy+4,f.z),S(px-4,qy+4,f.z)])+'"/>';
-    const lp=S(px-4,qy+4,f.z);
-    svg+='<text class="floorname" x="'+lp[0]+'" y="'+(+lp[1]+16)+'">'+f.label+'</text>';
-
-    // back to front so the boxes overlap correctly
-    const sorted=f.rooms.slice().sort(function(a,b){
-      return (a.x+a.y)-(b.x+b.y); });
-    sorted.forEach(function(r){
-      const ht=HT(r), z=f.z, t=z+ht;
-      const top=[S(r.x,r.y,t),S(r.x+r.w,r.y,t),S(r.x+r.w,r.y+r.h,t),S(r.x,r.y+r.h,t)];
-      const left=[S(r.x,r.y+r.h,t),S(r.x+r.w,r.y+r.h,t),S(r.x+r.w,r.y+r.h,z),S(r.x,r.y+r.h,z)];
-      const right=[S(r.x+r.w,r.y,t),S(r.x+r.w,r.y+r.h,t),S(r.x+r.w,r.y+r.h,z),S(r.x+r.w,r.y,z)];
-      const c=S(r.x+r.w/2,r.y+r.h/2,t);
-      const vacant=(r.kind==='vacant'), corridor=(r.kind==='corridor');
-      const op=r.step?1:(vacant?0.32:(corridor?0.4:0.62));
-      const out=r.step?fmStepOutput(r.step,FMAP.steps[r.step].acts):null;
-      svg+='<g class="room" data-room="'+r.n+'" data-step="'+(r.step||'')+'" opacity="'+op+'">'+
-        '<polygon class="rside" points="'+poly(left)+'" fill="'+COL(r,'side')+'" opacity=".45"/>'+
-        '<polygon class="rside" points="'+poly(right)+'" fill="'+COL(r,'side')+'" opacity=".62"/>'+
-        '<polygon class="rtop" points="'+poly(top)+'" fill="'+COL(r,'top')+
-        '" fill-opacity="'+(r.step?'.30':'.85')+'"/>';
-      if(r.step){
-        const b=S(r.x+3.5,r.y+3.5,t);
-        svg+='<circle cx="'+b[0]+'" cy="'+b[1]+'" r="7" fill="'+
-          (A.stranded.some(function(x){return x.step===r.step;})?'var(--overdue)':'var(--neon)')+'"/>'+
-          '<text class="badge" x="'+b[0]+'" y="'+(+b[1]+2.7)+'">'+r.step+'</text>';
-      }
-      svg+='<text class="rlbl'+(r.step?' big':'')+'" x="'+c[0]+'" y="'+
-        (+c[1]+(out!=null?-2:2))+'">'+
-        (r.n.length>19?r.n.slice(0,18)+'\u2026':r.n)+'</text>';
-      if(out!=null&&out>0) svg+='<text class="rout" x="'+c[0]+'" y="'+(+c[1]+9)+'">'+
-        fmt(Math.round(out))+'</text>';
-      svg+='<title>'+r.n+(r.step?' \u2014 step '+r.step:'')+
-        (out!=null&&out>0?' \u2014 '+fmt(Math.round(out))+' a day':'')+'</title></g>';
-    });
+  let html='';
+  show.forEach(function(k){
+    const rooms=(k==='ground')?FMAP.ground:FMAP.first;
+    const label=(k==='ground')?'GROUND FLOOR':'FIRST FLOOR';
+    const iso=fmIso(rooms,label,avail,A);
+    html+='<div class="floorblock"><div class="floorhead">'+label+
+      '<span>'+rooms.filter(function(r){return r.step;}).length+' production rooms</span></div>'+
+      iso.svg+'</div>';
   });
+  box.innerHTML=html;
 
-  /* the road through the process, 1 to 13 */
-  let road='';
-  const pt=function(step){
-    const w=A.where[step]; if(!w) return null;
-    const f=(w.floor==='ground')?0:FLOORH;
-    return S(w.r.x+w.r.w/2, w.r.y+w.r.h/2, f+HT(w.r)+2);
-  };
-  for(let i=0;i<A.steps.length-1;i++){
-    const a=pt(A.steps[i]), b=pt(A.steps[i+1]);
-    if(!a||!b) continue;
-    const bad=A.hops.some(function(x){return x.from===A.steps[i];});
-    const mx=((+a[0])+(+b[0]))/2, my=((+a[1])+(+b[1]))/2-(bad?26:9);
-    const d='M'+a[0]+' '+a[1]+' Q'+mx.toFixed(1)+' '+my.toFixed(1)+' '+b[0]+' '+b[1];
-    if(bad) road+='<path class="hop" d="'+d+'"/>';
-    else road+='<path class="flowbase" d="'+d+'"/><path class="flowlane" d="'+d+'"/>';
-  }
+  const box2=$('#factoryplan');
+  let html2='';
+  show.forEach(function(k){
+    const rooms=(k==='ground')?FMAP.ground:FMAP.first;
+    const label=(k==='ground')?'GROUND FLOOR':'FIRST FLOOR';
+    const pl=fmPlan(rooms,label,Math.max(280,(box2.clientWidth||avail)-16),A);
+    html2+='<div class="floorblock"><div class="floorhead">'+label+' \u00b7 flat plan</div>'+
+      pl.svg+'</div>';
+  });
+  box2.innerHTML=html2;
 
-  box.innerHTML='<svg class="fm" viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
-    '" preserveAspectRatio="xMinYMin meet">'+
-    '<defs><filter id="fmneon" x="-70%" y="-70%" width="240%" height="240%">'+
-    '<feGaussianBlur stdDeviation="2.2" result="b"/>'+
-    '<feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>'+
-    '</filter></defs>'+svg+road+'</svg>';
-
+  $('#mapnote').textContent=A.steps.length+' production rooms \u00b7 click any room';
   $('#maplegend').innerHTML=
     '<span><i style="background:var(--purchase)"></i>production room</span>'+
     '<span><i style="background:var(--overdue)"></i>on the wrong floor</span>'+
     '<span><i style="background:var(--panel2);border:1px solid var(--line)"></i>other room</span>'+
     '<span><i style="background:var(--neon)"></i>work flows this way</span>'+
-    '<span><i style="background:var(--neonhot)"></i>work changes floor here</span>'+
     '<span style="color:var(--mute)">numbers on rooms are pieces a day</span>';
 
-  const nOut=A.steps.filter(function(s){
-    const v=fmStepOutput(s,FMAP.steps[s].acts); return v!=null&&v>0; }).length;
-  $('#mapnote').textContent=A.steps.length+' production rooms \u00b7 '+
-    (nOut?nOut+' reporting output':'no output figures yet')+' \u00b7 click a room';
+  /* ---- what the map actually tells him ---- */
+  const flat=A.legs.reduce(function(s,l){return s+(l.cross?l.dist-STAIRCOST:l.dist);},0);
+  const stairs=A.hops.length*STAIRCOST;
+  let m='<div class="mstat">'+
+    '<div><div class="k">Journey per piece</div><div class="v">'+fmt(Math.round(A.total))+
+      '</div></div>'+
+    '<div><div class="k">Floor changes</div><div class="v '+(A.hops.length>1?'':'k')+'" '+
+      'style="'+(A.hops.length>1?'color:var(--overdue)':'')+'">'+A.hops.length+'</div></div>'+
+    '<div><div class="k">Spent on stairs</div><div class="v">'+
+      Math.round(stairs/A.total*100)+'%</div></div>'+
+    '<div><div class="k">Empty rooms</div><div class="v i">'+A.vacant.length+'</div></div>'+
+    '</div>';
 
-  /* what is in the wrong place */
-  let msg='';
-  if(A.hops.length){
-    msg+='Work changes floor <b>'+A.hops.length+' times</b> on its way through. '+
-      'Every change is a trolley, a staircase and a queue.<ol>';
-    A.hops.forEach(function(x){
-      msg+='<li>'+x.fromName+' (step '+x.from+') \u2192 '+x.toName+
-        ' (step '+x.to+') \u2014 goes '+x.dir+'</li>';
-    });
-    msg+='</ol>';
-  } else msg+='<span class="ok">Work never changes floor. The layout follows the process.</span>';
+  m+='<div class="mapissue"><b>The longest hauls</b><ol>';
+  A.longest.forEach(function(l){
+    m+='<li>'+l.fromName+' \u2192 '+l.toName+' \u2014 '+Math.round(l.dist)+
+      ' ('+Math.round(l.dist/A.total*100)+'% of the whole journey)'+
+      (l.cross?' <b>and it changes floor</b>':'')+'</li>';
+  });
+  m+='</ol></div>';
+
   if(A.stranded.length){
-    msg+='<br><b>These rooms look misplaced.</b> The step before and the step after are '+
-      'both on the other floor, so the work goes across and straight back:<ol>';
+    m+='<div class="mapissue"><b>Rooms in the wrong place.</b> '+
+      'The step before and the step after are both on the other floor, so work '+
+      'crosses over and comes straight back.<ol>';
     A.stranded.forEach(function(s){
-      msg+='<li><b>'+s.name+'</b> (step '+s.step+') sits on the '+s.on+
-        ' floor but is surrounded by '+s.should+'-floor steps. '+
-        'Moving it would remove two floor changes.</li>';
+      m+='<li><b>'+s.name+'</b> (step '+s.step+') is on the '+s.on+
+        ' floor, between two '+s.should+'-floor steps.</li>';
     });
-    msg+='</ol>';
+    m+='</ol></div>';
   }
-  $('#mapissues').innerHTML='<div class="mapissue">'+msg+'</div>';
+
+  if(A.ideas.length){
+    m+='<div class="mapissue" style="border-left-color:var(--ontrack)">'+
+      '<b class="ok">What would help most.</b> Using the empty rooms you already have:<ol>';
+    A.ideas.forEach(function(x){
+      m+='<li>Move <b>'+x.name+'</b> into the empty room on the <b>'+x.toFloor+
+        ' floor</b> \u2014 the journey drops by '+Math.round(x.pct)+
+        '% (from '+fmt(Math.round(A.total))+' to '+fmt(Math.round(x.newTotal))+').</li>';
+    });
+    m+='</ol><span style="color:var(--dim);font-size:12px">'+
+      'Distances are measured on your plan, and one trip up or down the stairs '+
+      'is counted as '+STAIRCOST+' units. Change that figure if stairs cost you more.</span></div>';
+  }
+  $('#mapissues').innerHTML=m;
 }
 
 function roomModal(name,step){
@@ -1508,8 +1666,10 @@ function roomModal(name,step){
   if(!room) return;
   const A=fmAnalyse();
   const st=room.step?FMAP.steps[room.step]:null;
-  const out=st?fmStepOutput(room.step,st.acts):null;
-  const stranded=A.stranded.filter(function(x){return x.step===room.step;})[0];
+  const out=room.step?fmStepOutput(room.step):null;
+  const bad=A.stranded.filter(function(x){return x.step===room.step;})[0];
+  const inLeg=A.legs.filter(function(l){return l.to===room.step;})[0];
+  const outLeg=A.legs.filter(function(l){return l.from===room.step;})[0];
   let body='<div class="mstat">'+
     '<div><div class="k">Floor</div><div class="v" style="font-size:15px">'+floor+'</div></div>'+
     (room.step?'<div><div class="k">Step</div><div class="v">'+room.step+' of '+
@@ -1519,27 +1679,35 @@ function roomModal(name,step){
     '<div><div class="k">Floor area</div><div class="v" style="font-size:15px">'+
       fmt(room.w*room.h)+'</div></div></div>';
   if(st){
-    const prev=room.step>1?FMAP.steps[room.step-1]:null;
-    const next=FMAP.steps[room.step+1];
     body+='<table><tbody>'+
-      '<tr><td>Comes from</td><td><b>'+(prev?prev.name:'\u2014 first step')+'</b></td></tr>'+
-      '<tr><td>Goes to</td><td><b>'+(next?next.name:'\u2014 last step')+'</b></td></tr>'+
-      '<tr><td>Output read from</td><td>'+st.acts.join(', ')+'</td></tr>'+
+      '<tr><td>Work arrives from</td><td><b>'+(inLeg?inLeg.fromName:'\u2014 first step')+'</b></td>'+
+      '<td class="n">'+(inLeg?Math.round(inLeg.dist)+(inLeg.cross?' · changes floor':''):'')+'</td></tr>'+
+      '<tr><td>Work leaves for</td><td><b>'+(outLeg?outLeg.toName:'\u2014 last step')+'</b></td>'+
+      '<td class="n">'+(outLeg?Math.round(outLeg.dist)+(outLeg.cross?' · changes floor':''):'')+'</td></tr>'+
+      '<tr><td>Output read from</td><td colspan="2">'+st.acts.join(', ')+'</td></tr>'+
       '</tbody></table>';
-    if(stranded) body+='<div class="mapissue" style="margin-top:14px">'+
+    if(bad) body+='<div class="mapissue" style="margin-top:14px">'+
       '<b>This room looks misplaced.</b><br>Step '+(room.step-1)+' and step '+(room.step+1)+
-      ' are both on the '+stranded.should+' floor, so work comes across to this room and '+
-      'goes straight back. Moving it would remove two floor changes.</div>';
+      ' are both on the '+bad.should+' floor, so work comes across to this room and goes '+
+      'straight back.</div>';
+    const idea=A.ideas.filter(function(x){return x.step===room.step;})[0];
+    if(idea) body+='<div class="mapissue" style="margin-top:12px;border-left-color:var(--ontrack)">'+
+      '<b class="ok">Moving this would help.</b><br>Put it in the empty room on the '+
+      idea.toFloor+' floor and the journey per piece drops by '+Math.round(idea.pct)+'%.</div>';
   } else {
     body+='<p style="color:var(--dim);font-size:13px;margin-top:12px">'+
-      'Not a production room.</p>';
+      (room.kind==='vacant'
+        ? 'An empty room. The suggestions above use rooms like this one.'
+        : 'Not a production room.')+'</p>';
   }
   openModal(room.n, floor+(st?' \u00b7 step '+room.step:''), body);
 }
 
 document.addEventListener('click',function(e){
+  const fb=e.target.closest('#floorpick button[data-floor]');
+  if(fb){ FLOOR=fb.dataset.floor; renderFactory(); return; }
   const g=e.target.closest('.fm g.room[data-room]');
-  if(g) roomModal(g.dataset.room, g.dataset.step);
+  if(g){ roomModal(g.dataset.room,g.dataset.step); return; }
 });
 
 /* ---------------- hubs, per family ----------------
