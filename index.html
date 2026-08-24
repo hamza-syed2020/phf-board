@@ -732,7 +732,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v18 · 19 Aug 2026';
+const VERSION='v19 · 24 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -1706,6 +1706,8 @@ function roomModal(name,step){
 document.addEventListener('click',function(e){
   const fb=e.target.closest('#floorpick button[data-floor]');
   if(fb){ FLOOR=fb.dataset.floor; renderFactory(); return; }
+  const of_=e.target.closest('#ofam button[data-ofam]');
+  if(of_){ ORDFAM=of_.dataset.ofam; paintOrder(); return; }
   const g=e.target.closest('.fm g.room[data-room]');
   if(g){ roomModal(g.dataset.room,g.dataset.step); return; }
 });
@@ -2523,32 +2525,101 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')shut();});
 function mini(i,tot){const t=tot||i.qty,w=x=>t?(x/t*100).toFixed(2):0;
   return `<div class="minibar">${i.pur>0?`<i class="p" style="width:${w(i.pur)}%"></i>`:''}${i.inp>0?`<i class="i" style="width:${w(i.inp)}%"></i>`:''}${i.packed>0?`<i class="k" style="width:${w(i.packed)}%"></i>`:''}</div>`;}
 
+/* ---- the four working families, from the item code ---- */
+const WFAM=[{k:'all',n:'All'},{k:'S',n:'Scissors'},{k:'F',n:'Forceps'},
+            {k:'C',n:'Chimti'},{k:'RF',n:'Ready Finish'}];
+function wfamOf(i){
+  const p=String(i.code||'').split('-')[0].toUpperCase().replace(/[^A-Z]/g,'');
+  if(p==='PC'||p==='PL') return 'S';
+  if(p==='PF') return 'C';
+  if(p==='PG'||p==='PH'||p==='PI'||p==='PN'||p==='PO'||p==='PJ'||p==='PK') return 'F';
+  // anything the code does not settle, fall back to what the sheet says
+  const c=String(i.cat||'').toLowerCase();
+  // rongeurs and pliers are bone instruments even though the word "forceps"
+  // appears in their category name, so they must be checked first
+  if(/rongeur|plier|osteotome|chisel|gouge|curette|rasp|retractor|specul/.test(c)) return 'RF';
+  if(/scissor/.test(c)) return 'S';
+  if(/dressing|tissue/.test(c)) return 'C';
+  if(/forcep|needle holder/.test(c)) return 'F';
+  return 'RF';
+}
+let ORDID=null, ORDFAM='all';
+
 function orderModal(id){
-  const o=DATA.orders.find(x=>x.id===id); if(!o) return;
-  const items=o.items.slice().sort((a,b)=>(b.qty-b.packed)-(a.qty-a.packed)||b.qty-a.qty);
-  const due=o.ddate?new Date(o.ddate).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}):'no date';
-  openModal(o.id,`${o.cust} · ${o.kind} · due ${due} · ${o.r.lab} · ${items.length} items`,
-    `<div class="mstat">
-      <div><div class="k">To produce</div><div class="v">${fmt(o.qty)}</div></div>
-      <div><div class="k">At purchase</div><div class="v p">${fmt(o.pur)}</div></div>
-      <div><div class="k">In production</div><div class="v i">${fmt(o.inp)}</div></div>
-      <div><div class="k">Packed</div><div class="v k">${fmt(o.packed)}</div></div>
-      <div><div class="k">Not started</div><div class="v">${fmt(o.none)}</div></div>
-      <div><div class="k">Complete</div><div class="v">${Math.round(o.pc*100)}%</div></div>
-    </div>
-    <table><thead><tr><th>Item</th><th>Description</th><th>Family</th><th>Stages</th>
-      <th style="text-align:right">Qty</th><th style="text-align:right">Purchase</th>
-      <th style="text-align:right">Production</th><th style="text-align:right">Packed</th>
-      <th style="text-align:right">To pack</th></tr></thead><tbody>
-      ${items.map(i=>`<tr><td class="code">${i.code}</td>
-        <td>${i.desc}${i.also?`<span class="chip">also ${i.also}</span>`:''}</td>
-        <td>${i.cat}</td><td style="width:104px">${mini(i)}</td>
-        <td class="n">${fmt(i.qty)}</td>
-        <td class="n" style="color:var(--purchase)">${i.pur?fmt(i.pur):'—'}</td>
-        <td class="n" style="color:var(--inprod)">${i.inp?fmt(i.inp):'—'}</td>
-        <td class="n" style="color:var(--packed)">${i.packed?fmt(i.packed):'—'}</td>
-        <td class="n"><b>${fmt(i.qty-i.packed)}</b></td></tr>`).join('')}
-    </tbody></table>`);
+  ORDID=id; ORDFAM='all'; paintOrder();
+}
+function paintOrder(){
+  const o=DATA.orders.find(x=>x.id===ORDID); if(!o) return;
+  const all=o.items.slice().sort((a,b)=>(b.qty-b.packed)-(a.qty-a.packed)||b.qty-a.qty);
+  all.forEach(function(i){ i._f=wfamOf(i); });
+  const items=(ORDFAM==='all')?all:all.filter(function(i){return i._f===ORDFAM;});
+
+  const sum=function(list,f){ return list.reduce(function(s,i){return s+i[f];},0); };
+  const S={qty:sum(items,'qty'),pur:sum(items,'pur'),inp:sum(items,'inp'),
+           packed:sum(items,'packed'),none:sum(items,'none')};
+  const pc=S.qty?Math.round(S.packed/S.qty*100):0;
+
+  const tabs=WFAM.map(function(f){
+    const n=(f.k==='all')?all.length:all.filter(function(i){return i._f===f.k;}).length;
+    if(f.k!=='all'&&!n) return '';
+    return '<button data-ofam="'+f.k+'" class="'+(f.k===ORDFAM?'on':'')+'">'+
+      f.n+' <span style="opacity:.65">'+n+'</span></button>';
+  }).join('');
+
+  const due=o.ddate?new Date(o.ddate).toLocaleDateString('en-GB',
+    {day:'numeric',month:'short',year:'numeric'}):'no date';
+
+  /* how each family inside this order is doing, shown on the All tab */
+  let split='';
+  if(ORDFAM==='all'){
+    const rows=WFAM.filter(function(f){return f.k!=='all';}).map(function(f){
+      const li=all.filter(function(i){return i._f===f.k;});
+      if(!li.length) return null;
+      return {n:f.n,k:f.k,lines:li.length,qty:sum(li,'qty'),pur:sum(li,'pur'),
+              inp:sum(li,'inp'),packed:sum(li,'packed')};
+    }).filter(Boolean).sort(function(a,b){return b.qty-a.qty;});
+    split='<table style="margin-bottom:16px"><thead><tr><th>Family</th>'+
+      '<th style="text-align:right">Items</th><th style="text-align:right">Qty</th>'+
+      '<th style="text-align:right">Purchase</th><th style="text-align:right">Production</th>'+
+      '<th style="text-align:right">Packed</th><th style="text-align:right">To pack</th>'+
+      '<th style="text-align:right">Done</th></tr></thead><tbody>'+
+      rows.map(function(r){
+        const d=r.qty?Math.round(r.packed/r.qty*100):0;
+        return '<tr><td><b>'+r.n+'</b></td><td class="n">'+r.lines+'</td>'+
+          '<td class="n">'+fmt(r.qty)+'</td>'+
+          '<td class="n" style="color:var(--purchase)">'+(r.pur?fmt(r.pur):'—')+'</td>'+
+          '<td class="n" style="color:var(--inprod)">'+(r.inp?fmt(r.inp):'—')+'</td>'+
+          '<td class="n" style="color:var(--packed)">'+(r.packed?fmt(r.packed):'—')+'</td>'+
+          '<td class="n"><b>'+fmt(r.qty-r.packed)+'</b></td>'+
+          '<td class="n">'+d+'%</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+
+  openModal(o.id, o.cust+' \u00b7 '+o.kind+' \u00b7 due '+due+' \u00b7 '+o.r.lab+
+    ' \u00b7 '+all.length+' items',
+    '<div class="fampick" id="ofam">'+tabs+'</div>'+
+    '<div class="mstat">'+
+      '<div><div class="k">To produce</div><div class="v">'+fmt(S.qty)+'</div></div>'+
+      '<div><div class="k">At purchase</div><div class="v p">'+fmt(S.pur)+'</div></div>'+
+      '<div><div class="k">In production</div><div class="v i">'+fmt(S.inp)+'</div></div>'+
+      '<div><div class="k">Packed</div><div class="v k">'+fmt(S.packed)+'</div></div>'+
+      '<div><div class="k">Not started</div><div class="v">'+fmt(S.none)+'</div></div>'+
+      '<div><div class="k">Complete</div><div class="v">'+pc+'%</div></div>'+
+    '</div>'+split+
+    '<table><thead><tr><th>Item</th><th>Description</th><th>Family</th><th>Stages</th>'+
+    '<th style="text-align:right">Qty</th><th style="text-align:right">Purchase</th>'+
+    '<th style="text-align:right">Production</th><th style="text-align:right">Packed</th>'+
+    '<th style="text-align:right">To pack</th></tr></thead><tbody>'+
+    items.map(function(i){
+      return '<tr><td class="code">'+i.code+'</td>'+
+        '<td>'+i.desc+(i.also?'<span class="chip">also '+i.also+'</span>':'')+'</td>'+
+        '<td>'+i.cat+'</td><td style="width:104px">'+mini(i)+'</td>'+
+        '<td class="n">'+fmt(i.qty)+'</td>'+
+        '<td class="n" style="color:var(--purchase)">'+(i.pur?fmt(i.pur):'—')+'</td>'+
+        '<td class="n" style="color:var(--inprod)">'+(i.inp?fmt(i.inp):'—')+'</td>'+
+        '<td class="n" style="color:var(--packed)">'+(i.packed?fmt(i.packed):'—')+'</td>'+
+        '<td class="n"><b>'+fmt(i.qty-i.packed)+'</b></td></tr>';
+    }).join('')+'</tbody></table>');
 }
 
 function familyModal(){
