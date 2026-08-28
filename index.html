@@ -795,7 +795,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v21 · 26 Aug 2026';
+const VERSION='v22 · 26 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -2365,24 +2365,81 @@ function renderCapacity(){
    Production only — no sampling, no complaints. Written to be pasted
    straight into a message to the production manager. ------------------- */
 /* ---------------- weekly production plan ----------------
-   Two A4 sheets. Real page boxes on screen so what you see is what prints.
+   Two A4 sheets, front and back of one sheet of paper.
+   The chart here is drawn fresh with literal colours and no filters or
+   animations, because CSS variables inside SVG do not survive printing.
    ------------------------------------------------------------------- */
+function wkTimeline(orders,W){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const horizon=new Date(today); horizon.setMonth(horizon.getMonth()+3);
+  const live=orders.filter(function(o){ return o.ddate&&o.bal>0&&new Date(o.ddate)<=horizon; })
+    .sort(function(a,b){ return new Date(a.ddate)-new Date(b.ddate); });
+  if(!live.length) return '<p class="dim">No dated orders in the next three months.</p>';
+
+  const t0=new Date(today.getFullYear(),today.getMonth(),1);
+  const t1=new Date(today.getFullYear(),today.getMonth()+4,0);
+  const span=t1-t0;
+  const L=118, R=74, ROW=19, TOP=26;
+  const H=TOP+live.length*ROW+14, PW=W-L-R;
+  const x=function(d){ return L+Math.max(0,Math.min(1,(new Date(d)-t0)/span))*PW; };
+
+  let grid='', m=new Date(t0);
+  while(m<t1){
+    const gx=x(m);
+    grid+='<line x1="'+gx.toFixed(1)+'" y1="'+(TOP-12)+'" x2="'+gx.toFixed(1)+'" y2="'+(H-8)+
+      '" stroke="#E1E6EA" stroke-width="1"/>'+
+      '<text x="'+(gx+5).toFixed(1)+'" y="'+(TOP-16)+'" fill="#8D99A4" font-size="8" '+
+      'font-weight="600" letter-spacing="1.2">'+
+      m.toLocaleDateString('en-GB',{month:'short'}).toUpperCase()+'</text>';
+    m=new Date(m.getFullYear(),m.getMonth()+1,1);
+  }
+  const nx=x(today);
+
+  const rows=live.map(function(o,i){
+    const y=TOP+i*ROW;
+    const dd=new Date(o.ddate), od=o.odate?new Date(o.odate):null;
+    const start=Math.max(x(od&&od>t0?od:t0),L), end=x(dd);
+    const bx=Math.min(start,end-4), bw=Math.max(4,end-Math.min(start,end-4));
+    const days=Math.round((dd-today)/86400000);
+    // one flat colour per bar, chosen by how close the date is
+    const col=days<0?'#D01A45':(days<=14?'#D4600C':(days<=45?'#B8860B':'#0F9E6E'));
+    return '<g>'+
+      '<rect x="'+L+'" y="'+(y+3)+'" width="'+PW+'" height="11" fill="#EDF1F5"/>'+
+      '<rect x="'+bx.toFixed(1)+'" y="'+(y+3)+'" width="'+bw.toFixed(1)+
+        '" height="11" fill="'+col+'"/>'+
+      '<rect x="'+(end-1.5).toFixed(1)+'" y="'+(y+1)+'" width="2.5" height="15" fill="#0E1418"/>'+
+      '<text x="0" y="'+(y+12)+'" fill="#0E1418" font-size="8.5" font-weight="600">'+
+        o.id+'</text>'+
+      '<text x="'+(W-R+6)+'" y="'+(y+12)+'" fill="#0E1418" font-size="8">'+
+        dd.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+
+        '<tspan fill="'+(days<0?'#D01A45':'#8D99A4')+'">  '+
+        (days<0?Math.abs(days)+'d late':days+'d')+'</tspan></text></g>';
+  }).join('');
+
+  return '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
+    '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">'+
+    grid+rows+
+    '<line x1="'+nx.toFixed(1)+'" y1="'+(TOP-12)+'" x2="'+nx.toFixed(1)+'" y2="'+(H-8)+
+    '" stroke="#0E1418" stroke-width="1.2" stroke-dasharray="3 3"/>'+
+    '<text x="'+(nx+4).toFixed(1)+'" y="'+(H-1)+'" fill="#0E1418" font-size="7.5" '+
+    'font-weight="700" letter-spacing="1.2">TODAY</text></svg>';
+}
+
 function weeklyPlan(){
   const today=new Date(); today.setHours(0,0,0,0);
   const dl=function(o){ return o.ddate?Math.round((new Date(o.ddate)-today)/DAY):null; };
   const urgent=function(o){ return PINS.indexOf(o.id)>=0; };
-  // full year, because "1 Sept 26" reads like the 26th
   const dd=function(d){ return d?new Date(d).toLocaleDateString('en-GB',
       {day:'numeric',month:'short',year:'numeric'}):'\u2014'; };
-  const ddLong=function(d){ return d?new Date(d).toLocaleDateString('en-GB',
-      {day:'numeric',month:'long',year:'numeric'}):'no date'; };
+  const ddShort=function(d){ return d?new Date(d).toLocaleDateString('en-GB',
+      {day:'numeric',month:'short'}):'\u2014'; };
 
   const live=LIVE.filter(function(o){return o.bal>0;}).slice().sort(function(a,b){
     const ua=urgent(a)?0:1, ub=urgent(b)?0:1;
     if(ua!==ub) return ua-ub;
-    const x=dl(a), y=dl(b);
-    if(x===null) return 1; if(y===null) return -1;
-    return x-y;
+    const p=dl(a), q=dl(b);
+    if(p===null) return 1; if(q===null) return -1;
+    return p-q;
   });
 
   const FK=['S','F','C','RF'];
@@ -2393,7 +2450,6 @@ function weeklyPlan(){
     o.items.forEach(function(i){ const b=i.qty-i.packed; if(b>0) m[wfamOf(i)]+=b; });
     return m;
   };
-
   const famBal={S:0,F:0,C:0,RF:0};
   live.forEach(function(o){ const m=split(o); FK.forEach(function(f){ famBal[f]+=m[f]; }); });
   const totalBal=FK.reduce(function(s,f){return s+famBal[f];},0);
@@ -2401,224 +2457,175 @@ function weeklyPlan(){
   const week=(DATA.target&&DATA.target.week===5)?5:6;
   const overdue=live.filter(function(o){ const d=dl(o); return d!==null&&d<0; });
 
-  /* one row per order, one column per family — no ambiguity about what belongs to what */
   const orderRows=live.map(function(o){
-    const m=split(o), d=dl(o);
-    const late=(d!==null&&d<0);
-    return '<tr class="'+(urgent(o)?'u':'')+'">'+
-      '<td class="ord"><b>'+o.id+'</b>'+(urgent(o)?'<span class="tag">URGENT</span>':'')+
+    const m=split(o), d=dl(o), late=(d!==null&&d<0);
+    return '<tr'+(urgent(o)?' class="u"':'')+'>'+
+      '<td class="ord"><b>'+o.id+'</b>'+(urgent(o)?'<span class="tag">URG</span>':'')+
         '<span class="cu">'+o.cust+'</span></td>'+
-      '<td class="dt'+(late?' late':'')+'">'+dd(o.ddate)+
-        '<span class="cu">'+(d===null?'no date':(d<0?Math.abs(d)+'d late':d+'d left'))+'</span></td>'+
-      FK.map(function(f){ return '<td class="n'+(m[f]?'':' z')+'">'+(m[f]?fmt(m[f]):'\u2013')+'</td>'; }).join('')+
+      '<td class="dt'+(late?' late':'')+'">'+ddShort(o.ddate)+
+        '<span class="cu">'+(d===null?'no date':(d<0?Math.abs(d)+'d late':d+'d'))+'</span></td>'+
+      FK.map(function(f){
+        return '<td class="n'+(m[f]?'':' z')+'">'+(m[f]?fmt(m[f]):'\u2013')+'</td>'; }).join('')+
       '<td class="n tot">'+fmt(o.bal)+'</td></tr>';
   }).join('');
 
-  const famTotals=FK.map(function(f){
-    return '<td class="n tot">'+fmt(famBal[f])+'</td>'; }).join('');
-
   const famRows=FK.filter(function(f){return famBal[f];}).map(function(f){
-    const perDay=req?Math.ceil(famBal[f]/req.days):0;
+    const per=req?Math.ceil(famBal[f]/req.days):0;
     return '<tr><td><span class="dot" style="background:'+FC[f]+'"></span>'+FN[f]+'</td>'+
-      '<td class="n">'+fmt(famBal[f])+'</td>'+
-      '<td class="n">'+(perDay?fmt(perDay):'\u2013')+'</td>'+
-      '<td class="n">'+(perDay?fmt(perDay*week):'\u2013')+'</td>'+
-      '<td class="n">'+(perDay?fmt(perDay*week*4):'\u2013')+'</td>'+
+      '<td class="n">'+fmt(famBal[f])+'</td><td class="n">'+(per?fmt(per):'\u2013')+'</td>'+
+      '<td class="n">'+(per?fmt(per*week):'\u2013')+'</td>'+
+      '<td class="n">'+(per?fmt(per*week*4):'\u2013')+'</td>'+
       '<td class="n">'+(totalBal?Math.round(famBal[f]/totalBal*100):0)+'%</td></tr>';
   }).join('');
 
-  /* one table for the three horizons, with a column saying which it falls in */
   const eow=new Date(today); eow.setDate(today.getDate()+((7-today.getDay())%7||7));
   const eom=new Date(today.getFullYear(),today.getMonth()+1,0);
-  const eoy=new Date(today.getFullYear(),11,31);
   const bucket=function(o){
-    if(!o.ddate) return null;
+    if(!o.ddate) return 'No date';
     const t=new Date(o.ddate);
     if(t<today) return 'Overdue';
     if(t<=eow) return 'This week';
     if(t<=eom) return 'This month';
-    if(t<=eoy) return 'This year';
     return 'Later';
   };
-  const count=function(b){ return live.filter(function(o){return bucket(o)===b;}).length; };
-  const dueRows=live.filter(function(o){
-      const b=bucket(o); return b==='Overdue'||b==='This week'||b==='This month'; })
-    .map(function(o){
+  const near=live.filter(function(o){
+    const b=bucket(o); return b==='Overdue'||b==='This week'||b==='This month'; });
+  const dueRows=near.length?near.map(function(o){
       const b=bucket(o);
       return '<tr><td><span class="pill '+(b==='Overdue'?'r':(b==='This week'?'o':'a'))+'">'+
-        b+'</span></td><td><b>'+o.id+'</b></td><td>'+o.cust+'</td>'+
-        '<td>'+dd(o.ddate)+'</td><td class="n tot">'+fmt(o.bal)+'</td></tr>';
-    }).join('')||'<tr><td colspan="5" class="dim">Nothing due before the end of the month.</td></tr>';
+        b+'</span></td><td><b>'+o.id+'</b></td><td>'+o.cust+'</td><td>'+ddShort(o.ddate)+
+        '</td><td class="n tot">'+fmt(o.bal)+'</td></tr>';
+    }).join('')
+    :'<tr><td colspan="5" class="dim">Nothing due before the end of the month.</td></tr>';
+  const cnt=function(b){ return live.filter(function(o){return bucket(o)===b;}).length; };
 
   const monday=new Date(today); monday.setDate(today.getDate()-((today.getDay()+6)%7));
   const sunday=new Date(monday); sunday.setDate(monday.getDate()+6);
-  const tl=renderTimeline(660);
+  const chart=wkTimeline(live,640);
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Weekly production plan ${dd(monday)} to ${dd(sunday)}</title>
+<title>Weekly production plan ${ddShort(monday)} to ${dd(sunday)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0E1418;--body:#57646F;--faint:#8D99A4;--line:#E1E6EA;--wash:#F5F7F9;
- --overdue:#D01A45;--behind:#D4600C;--watch:#B8860B;--ontrack:#0F9E6E;
- --purchase:#1272CC;--inprod:#8A3FD1;--packed:#0F9E6E;--panel2:#EDF1F5;
- --dim:#8D99A4;--mute:#57646F;}
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Inter,"Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);
- background:#DFE3E7;font-size:11px;line-height:1.45}
-.sheet{width:210mm;min-height:297mm;padding:13mm 14mm;margin:8mm auto;background:#fff;
- box-shadow:0 2px 14px rgba(0,0,0,.16);position:relative}
-.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
- border-bottom:2px solid var(--ink);padding-bottom:9px;margin-bottom:13px}
-.top img{height:34px;display:block;margin-bottom:5px}
-h1{font-size:16px;font-weight:600;letter-spacing:-.02em}
-.when{text-align:right;font-size:10.5px;color:var(--body);line-height:1.5}
-.when b{font-size:12px;color:var(--ink)}
-.sub{color:var(--faint);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:600}
-h2{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:600;
- color:var(--faint);margin:14px 0 7px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+*{box-sizing:border-box;margin:0;padding:0;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:Inter,"Helvetica Neue",Helvetica,Arial,sans-serif;color:#0E1418;
+  background:#DFE3E7;font-size:10px;line-height:1.4}
+.sheet{width:190mm;padding:0;margin:8mm auto;background:#fff;
+  box-shadow:0 2px 14px rgba(0,0,0,.15);padding:10mm}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
+  border-bottom:2px solid #0E1418;padding-bottom:7px;margin-bottom:10px}
+.top img{height:30px;display:block;margin-bottom:4px}
+h1{font-size:15px;font-weight:600;letter-spacing:-.02em}
+.when{text-align:right;font-size:9.5px;color:#57646F;line-height:1.45}
+.when b{font-size:11px;color:#0E1418}
+.sub{color:#8D99A4;font-size:8px;letter-spacing:.15em;text-transform:uppercase;font-weight:600}
+h2{font-size:9px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;color:#8D99A4;
+  margin:11px 0 5px;padding-bottom:4px;border-bottom:1px solid #E1E6EA}
 h2:first-of-type{margin-top:0}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
- border:1px solid var(--line)}
-.kpi{background:#fff;padding:8px 10px}
-.kpi .k{font-size:8px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);font-weight:600}
-.kpi .v{font-size:19px;font-weight:600;letter-spacing:-.03em;line-height:1.2}
-.kpi .v.bad{color:var(--overdue)}
-table{width:100%;border-collapse:collapse;font-size:10.5px}
-th{text-align:left;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);
- font-weight:600;padding:5px 6px;border-bottom:1.4px solid var(--ink);white-space:nowrap}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#E1E6EA;
+  border:1px solid #E1E6EA}
+.kpi{background:#fff;padding:6px 9px}
+.kpi .k{font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:#8D99A4;font-weight:600}
+.kpi .v{font-size:17px;font-weight:600;letter-spacing:-.03em;line-height:1.15}
+.kpi .v.bad{color:#D01A45}
+table{width:100%;border-collapse:collapse;font-size:9.5px}
+th{text-align:left;font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:#8D99A4;
+  font-weight:600;padding:4px 5px;border-bottom:1.3px solid #0E1418;white-space:nowrap}
 th.n,td.n{text-align:right}
-td{padding:4.5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+td{padding:3px 5px;border-bottom:1px solid #EEF1F4;vertical-align:top}
 tr.u td{background:#FFF4F7}
-td.ord b{font-size:11px} .cu{display:block;color:var(--faint);font-size:8.5px}
-td.dt{white-space:nowrap} td.dt.late{color:var(--overdue);font-weight:600}
-td.n{font-variant-numeric:tabular-nums} td.n.z{color:#C6CDD4}
+td.ord b{font-size:10px}
+.cu{display:block;color:#8D99A4;font-size:7.5px;line-height:1.3}
+td.dt{white-space:nowrap}td.dt.late{color:#D01A45;font-weight:600}
+td.n{font-variant-numeric:tabular-nums}td.n.z{color:#C6CDD4}
 td.tot{font-weight:600}
-tfoot td{border-top:1.4px solid var(--ink);border-bottom:0;font-weight:600;padding-top:6px}
-.tag{display:inline-block;background:var(--overdue);color:#fff;font-size:7.5px;font-weight:700;
- letter-spacing:.08em;padding:1px 4px;margin-left:5px;border-radius:2px;vertical-align:1px}
-.pill{display:inline-block;font-size:8px;font-weight:700;letter-spacing:.08em;padding:2px 6px;
- border-radius:2px;white-space:nowrap}
-.pill.r{background:#FCE4EA;color:var(--overdue)}
-.pill.o{background:#FDEAD9;color:var(--behind)}
-.pill.a{background:#FAF1D6;color:var(--watch)}
-.dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:6px}
-.dim{color:var(--faint)}
-.note{color:var(--faint);font-size:9px;margin-top:5px}
-.tlbox{border:1px solid var(--line);padding:7px}
-.tlbox svg{width:100%;height:auto;display:block}
-/* the chart carries no stylesheet of its own, so give every part a colour here */
-.tlbox .lane{fill:var(--panel2)}
-.tlbox .grid{stroke:var(--line);stroke-width:1}
-.tlbox .gridtxt{fill:var(--faint);font-size:8px;letter-spacing:.12em;font-weight:600}
-.tlbox .oid{fill:var(--ink);font-size:8.5px;font-weight:600}
-.tlbox .sub{fill:var(--faint);font-size:7.5px}
-.tlbox .qty{fill:var(--ink);font-size:8px;font-weight:600}
-.tlbox .now{stroke:var(--ink);stroke-width:1.1;stroke-dasharray:3 3}
-.tlbox .nowtxt{fill:var(--ink);font-size:7px;font-weight:700;letter-spacing:.12em}
-.tlbox .bar{stroke:none}
-.tlbox .sweep,.tlbox .edge{display:none}
-.tlbox .ship,.tlbox .cap{opacity:1}
-.foot{position:absolute;left:14mm;right:14mm;bottom:8mm;display:flex;
- justify-content:space-between;color:var(--faint);font-size:8.5px;
- border-top:1px solid var(--line);padding-top:5px}
-.bar-print{position:fixed;top:0;left:0;right:0;background:var(--ink);color:#fff;
- padding:9px 16px;display:flex;justify-content:space-between;align-items:center;
- font-size:12px;z-index:9}
+tfoot td{border-top:1.3px solid #0E1418;border-bottom:0;font-weight:600;padding-top:5px}
+.tag{display:inline-block;background:#D01A45;color:#fff;font-size:6.5px;font-weight:700;
+  letter-spacing:.06em;padding:1px 3px;margin-left:4px;border-radius:2px;vertical-align:1px}
+.pill{display:inline-block;font-size:7.5px;font-weight:700;letter-spacing:.06em;padding:1px 5px;
+  border-radius:2px;white-space:nowrap}
+.pill.r{background:#FCE4EA;color:#D01A45}
+.pill.o{background:#FDEAD9;color:#D4600C}
+.pill.a{background:#FAF1D6;color:#B8860B}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:5px}
+.dim{color:#8D99A4}
+.note{color:#8D99A4;font-size:8px;margin-top:4px}
+.chart{border:1px solid #E1E6EA;padding:6px}
+.chart svg{display:block}
+.foot{margin-top:10px;border-top:1px solid #E1E6EA;padding-top:4px;display:flex;
+  justify-content:space-between;color:#8D99A4;font-size:7.5px}
+.bar-print{position:fixed;top:0;left:0;right:0;background:#0E1418;color:#fff;padding:9px 16px;
+  display:flex;justify-content:space-between;align-items:center;font-size:12px;z-index:9}
 .bar-print button{font:inherit;font-size:12px;font-weight:600;padding:7px 16px;border:0;
- background:#fff;color:var(--ink);cursor:pointer;border-radius:2px}
+  background:#fff;color:#0E1418;cursor:pointer;border-radius:2px}
 .spacer{height:40px}
 @media print{
-  @page{size:A4;margin:0}
-  body{background:#fff}
+  /* let the printer own the margins; the sheet just fills what is left */
+  @page{size:A4 portrait;margin:11mm}
+  body{background:#fff;font-size:9.5px}
   .bar-print,.spacer{display:none}
-  .sheet{margin:0;box-shadow:none;width:210mm;min-height:297mm;
-    page-break-after:always;break-after:page}
-  .sheet:last-of-type{page-break-after:auto;break-after:auto}
-  table,.kpis,.tlbox{break-inside:avoid}
-  tr{break-inside:avoid}
+  .sheet{width:auto;margin:0;padding:0;box-shadow:none;break-after:page;page-break-after:always}
+  .sheet:last-child{break-after:auto;page-break-after:auto}
+  table,.kpis,.chart,tr{break-inside:avoid;page-break-inside:avoid}
+  h2{break-after:avoid;page-break-after:avoid}
 }
 </style></head><body>
 <div class="bar-print">
-  <span>Two A4 pages &middot; in the print dialogue turn on <b>Background graphics</b></span>
+  <span>Two pages &middot; print double-sided</span>
   <button onclick="window.print()">Print / Save as PDF</button>
 </div><div class="spacer"></div>
 
 <div class="sheet">
   <div class="top">
     <div><img src="logo.png" alt="Professional"><h1>Weekly Production Plan</h1></div>
-    <div class="when">
-      <div class="sub">Week of</div>
-      <div><b>${dd(monday)} \u2013 ${dd(sunday)}</b></div>
-      <div class="dim">Page 1 of 2 &middot; ${new Date().toLocaleDateString('en-GB',
-        {day:'numeric',month:'short'})}</div>
-    </div>
+    <div class="when"><div class="sub">Week of</div>
+      <div><b>${ddShort(monday)} \u2013 ${dd(sunday)}</b></div>
+      <div class="dim">Page 1 of 2</div></div>
   </div>
-
   <div class="kpis">
     <div class="kpi"><div class="k">Live orders</div><div class="v">${live.length}</div></div>
     <div class="kpi"><div class="k">Pieces to pack</div><div class="v">${fmt(totalBal)}</div></div>
     <div class="kpi"><div class="k">Needed per day</div><div class="v">${req?fmt(req.rate):'\u2013'}</div></div>
     <div class="kpi"><div class="k">Overdue</div><div class="v ${overdue.length?'bad':''}">${overdue.length}</div></div>
   </div>
-
   <h2>Every order, and what each family owes</h2>
-  <table>
-    <thead><tr><th>Order</th><th>Delivery</th>
-      ${FK.map(function(f){return '<th class="n">'+FN[f]+'</th>';}).join('')}
-      <th class="n">To pack</th></tr></thead>
+  <table><thead><tr><th>Order</th><th>Due</th>
+    ${FK.map(function(f){return '<th class="n">'+FN[f]+'</th>';}).join('')}
+    <th class="n">To pack</th></tr></thead>
     <tbody>${orderRows}</tbody>
-    <tfoot><tr><td colspan="2">TOTAL &middot; ${live.length} orders</td>${famTotals}
-      <td class="n tot">${fmt(totalBal)}</td></tr></tfoot>
-  </table>
-  <p class="note">Sorted by delivery date, anything marked urgent first.
-     Figures are pieces still to pack, not the whole order.</p>
-
-  <div class="foot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span>
-    <span>Weekly production plan \u00b7 page 1</span></div>
+    <tfoot><tr><td colspan="2">TOTAL \u00b7 ${live.length} orders</td>
+      ${FK.map(function(f){return '<td class="n tot">'+fmt(famBal[f])+'</td>';}).join('')}
+      <td class="n tot">${fmt(totalBal)}</td></tr></tfoot></table>
+  <p class="note">Sorted by due date, urgent first. Figures are pieces still to pack.</p>
+  <div class="foot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span><span>Page 1</span></div>
 </div>
 
 <div class="sheet">
   <div class="top">
     <div><img src="logo.png" alt="Professional"><h1>Capacity &amp; Timeline</h1></div>
-    <div class="when">
-      <div class="sub">Week of</div>
-      <div><b>${dd(monday)} \u2013 ${dd(sunday)}</b></div>
-      <div class="dim">Page 2 of 2</div>
-    </div>
+    <div class="when"><div class="sub">Week of</div>
+      <div><b>${ddShort(monday)} \u2013 ${dd(sunday)}</b></div>
+      <div class="dim">Page 2 of 2</div></div>
   </div>
-
-  <h2>Delivery timeline</h2>
-  <div class="tlbox">${tl}</div>
-  <p class="note">Each bar runs from the order date to its delivery date.
-     The dashed line is today.</p>
-
+  <h2>Delivery timeline &middot; next three months</h2>
+  <div class="chart">${chart}</div>
   <h2>How much has to come off the line</h2>
   ${req?`<div class="kpis" style="grid-template-columns:repeat(3,1fr)">
     <div class="kpi"><div class="k">Every working day</div><div class="v">${fmt(req.rate)}</div></div>
     <div class="kpi"><div class="k">Every week (${week} days)</div><div class="v">${fmt(req.rate*week)}</div></div>
     <div class="kpi"><div class="k">Every month</div><div class="v">${fmt(req.rate*week*4)}</div></div>
-  </div>
-  <p class="note">To clear everything by ${ddLong(req.end)} \u00b7 ${req.days} working days left.</p>`
+  </div><p class="note">To clear everything by ${dd(req.end)} \u00b7 ${req.days} working days left.</p>`
   :'<p class="dim">No target date set on the Targets sheet.</p>'}
-
-  <table style="margin-top:9px">
-    <thead><tr><th>Family</th><th class="n">To pack</th><th class="n">Per day</th>
-      <th class="n">Per week</th><th class="n">Per month</th><th class="n">Share</th></tr></thead>
-    <tbody>${famRows}</tbody>
-  </table>
-
-  <h2>What is due, and when</h2>
-  <table>
-    <thead><tr><th>When</th><th>Order</th><th>Customer</th><th>Delivery</th>
-      <th class="n">To pack</th></tr></thead>
-    <tbody>${dueRows}</tbody>
-  </table>
-  <p class="note">Overdue ${count('Overdue')} &middot; this week ${count('This week')} &middot;
-     this month ${count('This month')} &middot; rest of the year ${count('This year')}.
-     Everything beyond the month is on page 1.</p>
-
-  <div class="foot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span>
-    <span>Weekly production plan \u00b7 page 2</span></div>
+  <table style="margin-top:7px"><thead><tr><th>Family</th><th class="n">To pack</th>
+    <th class="n">Per day</th><th class="n">Per week</th><th class="n">Per month</th>
+    <th class="n">Share</th></tr></thead><tbody>${famRows}</tbody></table>
+  <h2>Due before the end of the month</h2>
+  <table><thead><tr><th>When</th><th>Order</th><th>Customer</th><th>Due</th>
+    <th class="n">To pack</th></tr></thead><tbody>${dueRows}</tbody></table>
+  <p class="note">Overdue ${cnt('Overdue')} \u00b7 this week ${cnt('This week')} \u00b7
+     this month ${cnt('This month')} \u00b7 later ${cnt('Later')}. Everything is listed on page 1.</p>
+  <div class="foot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span><span>Page 2</span></div>
 </div>
 </body></html>`;
 }
