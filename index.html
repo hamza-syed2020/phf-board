@@ -505,55 +505,7 @@ td b{color:var(--ink)}
 .rate{color:var(--ontrack);font-weight:600}
 
 /* ---------------- printable weekly plan ---------------- */
-#wp{position:fixed;inset:0;z-index:60;background:var(--void);overflow:auto;
-  padding:0 0 40px}
-#wp .bar{position:sticky;top:0;z-index:2;display:flex;gap:10px;align-items:center;
-  justify-content:flex-end;padding:12px 22px;background:var(--panel);
-  border-bottom:1px solid var(--line)}
-#wp .sheet{max-width:1080px;margin:22px auto;background:var(--panel);
-  border:1px solid var(--line);padding:38px 42px}
-.wp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;
-  border-bottom:2px solid var(--ink);padding-bottom:16px;margin-bottom:26px;flex-wrap:wrap}
-.wp-head h1{font-size:27px;font-weight:700;letter-spacing:-.02em}
-.wp-head .sub{color:var(--dim);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
-  margin-top:6px;font-family:"IBM Plex Mono","Consolas",monospace}
-.wp-head img{height:40px;filter:var(--logo)}
-.wp-sec{margin-bottom:30px;break-inside:avoid}
-.wp-sec h2{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--mute);
-  border-bottom:1px solid var(--line);padding-bottom:7px;margin-bottom:14px;font-weight:700}
-.wp-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;
-  background:var(--line);border:1px solid var(--line);margin-bottom:16px}
-.wp-kpi div{background:var(--panel2);padding:12px 14px}
-.wp-kpi .k{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
-.wp-kpi .v{font-size:22px;font-weight:700;margin-top:3px;
-  font-family:"IBM Plex Mono","Consolas",monospace}
-.wp-ord{border:1px solid var(--line);border-left:3px solid var(--purchase);
-  padding:14px 16px;margin-bottom:10px;break-inside:avoid}
-.wp-ord.urgent{border-left-color:var(--overdue);background:var(--panel2)}
-.wp-ord.late{border-left-color:var(--overdue)}
-.wp-ord .top{display:flex;justify-content:space-between;gap:14px;align-items:baseline;
-  flex-wrap:wrap;margin-bottom:10px}
-.wp-ord .id{font-size:16px;font-weight:700;font-family:"IBM Plex Mono","Consolas",monospace}
-.wp-ord .cu{font-size:11px;color:var(--dim);letter-spacing:.12em}
-.wp-ord .dd{font-size:13px;font-weight:600}
-.wp-ord .dl{font-size:11px;color:var(--mute)}
-.wp-fam{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:8px}
-.wp-fam div{display:flex;justify-content:space-between;gap:8px;font-size:13px;
-  border-bottom:1px dotted var(--line);padding-bottom:3px}
-.wp-fam b{font-family:"IBM Plex Mono","Consolas",monospace}
-.wp-flag{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.13em;
-  padding:2px 7px;border:1px solid var(--overdue);color:var(--overdue);margin-left:8px}
-#wp table{width:100%;border-collapse:collapse;font-size:13px}
-#wp th{text-align:left;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
-  color:var(--dim);padding:7px 10px;border-bottom:1px solid var(--line)}
-#wp td{padding:6px 10px;border-bottom:1px solid var(--panel2)}
-#wp td.n{text-align:right;font-family:"IBM Plex Mono","Consolas",monospace}
-@media print{
-  @page{size:A4;margin:12mm}
-  body>*{display:none!important}
-  #wp{display:block!important;position:static;padding:0;background:#fff}
-  #wp .bar{display:none!important}
-  #wp .sheet{max-width:none;margin:0;border:0;padding:0}
+
   .wp-sec{page-break-inside:avoid}
   .wp-ord{page-break-inside:avoid}
 }
@@ -663,13 +615,6 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
   <div class="err hide" id="err"></div>
 </div>
 
-<div id="wp" class="hide">
-  <div class="bar">
-    <button id="wpprint">Save as PDF</button>
-    <button id="wpclose">Close &times;</button>
-  </div>
-  <div class="sheet" id="wpsheet"></div>
-</div>
 
 <div id="veil" class="hide"><div id="modal">
   <div class="mhead">
@@ -795,7 +740,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v22 · 26 Aug 2026';
+const VERSION='v24 · 26 Aug 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -2365,75 +2310,138 @@ function renderCapacity(){
    Production only — no sampling, no complaints. Written to be pasted
    straight into a message to the production manager. ------------------- */
 /* ---------------- weekly production plan ----------------
-   Two A4 sheets, front and back of one sheet of paper.
-   The chart here is drawn fresh with literal colours and no filters or
-   animations, because CSS variables inside SVG do not survive printing.
+   Rendered inside this page, not a new window. A blank popup has no address,
+   so relative paths like logo.png cannot resolve there, and browsers treat
+   its print rules inconsistently. Printing from here removes both problems.
+   Every rule is scoped under #wkroot so the board's own styles cannot leak in.
    ------------------------------------------------------------------- */
+const WKCSS=`
+#wkveil{position:fixed;inset:0;z-index:60;background:#DFE3E7;overflow:auto;
+  font-family:Inter,"Helvetica Neue",Helvetica,Arial,sans-serif}
+#wkbar{position:sticky;top:0;background:#0E1418;color:#fff;padding:10px 18px;display:flex;
+  justify-content:space-between;align-items:center;font-size:13px;z-index:2}
+#wkbar button{font:inherit;font-size:12.5px;font-weight:600;padding:8px 18px;border:0;
+  background:#fff;color:#0E1418;cursor:pointer;border-radius:2px;margin-left:8px}
+#wkbar button.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4)}
+#wkroot{color:#0E1418;font-size:10px;line-height:1.4}
+#wkroot *{box-sizing:border-box;margin:0;padding:0;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+#wkroot .wksheet{width:190mm;background:#fff;padding:10mm;margin:8mm auto;
+  box-shadow:0 2px 14px rgba(0,0,0,.15)}
+#wkroot .wktop{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
+  border-bottom:2px solid #0E1418;padding-bottom:7px;margin-bottom:10px}
+#wkroot .wktop img{height:30px;width:auto;display:block;margin-bottom:4px;filter:none}
+#wkroot h1{font-size:15px;font-weight:600;letter-spacing:-.02em;color:#0E1418;
+  text-transform:none;font-family:inherit}
+#wkroot .when{text-align:right;font-size:9.5px;color:#57646F;line-height:1.45}
+#wkroot .when b{font-size:11px;color:#0E1418}
+#wkroot .sub{color:#8D99A4;font-size:8px;letter-spacing:.15em;text-transform:uppercase;font-weight:600}
+#wkroot h2{font-size:9px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;
+  color:#8D99A4;margin:11px 0 5px;padding-bottom:4px;border-bottom:1px solid #E1E6EA;
+  font-family:inherit}
+#wkroot .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#E1E6EA;
+  border:1px solid #E1E6EA}
+#wkroot .kpi{background:#fff;padding:6px 9px}
+#wkroot .kpi .k{font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:#8D99A4;
+  font-weight:600}
+#wkroot .kpi .v{font-size:17px;font-weight:600;letter-spacing:-.03em;line-height:1.15;color:#0E1418}
+#wkroot .kpi .v.bad{color:#D01A45}
+#wkroot table{width:100%;border-collapse:collapse;font-size:9.5px;background:none;border:0}
+#wkroot th{text-align:left;font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:#8D99A4;font-weight:600;padding:4px 5px;border-bottom:1.3px solid #0E1418;
+  white-space:nowrap;background:none}
+#wkroot th.n,#wkroot td.n{text-align:right}
+#wkroot td{padding:3px 5px;border-bottom:1px solid #EEF1F4;vertical-align:top;color:#0E1418}
+#wkroot tr.u td{background:#FFF4F7}
+#wkroot td.ord b{font-size:10px}
+#wkroot .cu{display:block;color:#8D99A4;font-size:7.5px;line-height:1.3}
+#wkroot td.dt{white-space:nowrap}
+#wkroot td.dt.late{color:#D01A45;font-weight:600}
+#wkroot td.n{font-variant-numeric:tabular-nums}
+#wkroot td.n.z{color:#C6CDD4}
+#wkroot td.tot{font-weight:600}
+#wkroot tfoot td{border-top:1.3px solid #0E1418;border-bottom:0;font-weight:600;padding-top:5px}
+#wkroot .tag{display:inline-block;background:#D01A45;color:#fff;font-size:6.5px;font-weight:700;
+  letter-spacing:.06em;padding:1px 3px;margin-left:4px;border-radius:2px;vertical-align:1px}
+#wkroot .pill{display:inline-block;font-size:7.5px;font-weight:700;letter-spacing:.06em;
+  padding:1px 5px;border-radius:2px;white-space:nowrap}
+#wkroot .pill.r{background:#FCE4EA;color:#D01A45}
+#wkroot .pill.o{background:#FDEAD9;color:#D4600C}
+#wkroot .pill.a{background:#FAF1D6;color:#B8860B}
+#wkroot .fdot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:5px}
+#wkroot .dim{color:#8D99A4}
+#wkroot .note{color:#8D99A4;font-size:8px;margin-top:4px}
+#wkroot .chart{border:1px solid #E1E6EA;padding:6px}
+#wkroot .chart svg{display:block;width:100%;height:auto}
+#wkroot .wkfoot{margin-top:10px;border-top:1px solid #E1E6EA;padding-top:4px;display:flex;
+  justify-content:space-between;color:#8D99A4;font-size:7.5px}
+@media print{
+  @page{size:A4 portrait;margin:11mm}
+  html,body{background:#fff !important}
+  body>*{display:none !important}
+  body>#wkveil{display:block !important;position:static !important;overflow:visible !important;
+    background:#fff !important}
+  #wkbar{display:none !important}
+  #wkroot .wksheet{width:auto !important;margin:0 !important;padding:0 !important;
+    box-shadow:none !important;break-after:page;page-break-after:always}
+  #wkroot .wksheet:last-child{break-after:auto;page-break-after:auto}
+  #wkroot table,#wkroot .kpis,#wkroot .chart,#wkroot tr{break-inside:avoid;page-break-inside:avoid}
+  #wkroot h2{break-after:avoid;page-break-after:avoid}
+}`;
+
 function wkTimeline(orders,W){
   const today=new Date(); today.setHours(0,0,0,0);
   const horizon=new Date(today); horizon.setMonth(horizon.getMonth()+3);
   const live=orders.filter(function(o){ return o.ddate&&o.bal>0&&new Date(o.ddate)<=horizon; })
     .sort(function(a,b){ return new Date(a.ddate)-new Date(b.ddate); });
   if(!live.length) return '<p class="dim">No dated orders in the next three months.</p>';
-
   const t0=new Date(today.getFullYear(),today.getMonth(),1);
   const t1=new Date(today.getFullYear(),today.getMonth()+4,0);
   const span=t1-t0;
-  const L=118, R=74, ROW=19, TOP=26;
+  const L=118,R=76,ROW=19,TOP=26;
   const H=TOP+live.length*ROW+14, PW=W-L-R;
   const x=function(d){ return L+Math.max(0,Math.min(1,(new Date(d)-t0)/span))*PW; };
-
-  let grid='', m=new Date(t0);
+  let grid='',m=new Date(t0);
   while(m<t1){
     const gx=x(m);
     grid+='<line x1="'+gx.toFixed(1)+'" y1="'+(TOP-12)+'" x2="'+gx.toFixed(1)+'" y2="'+(H-8)+
       '" stroke="#E1E6EA" stroke-width="1"/>'+
       '<text x="'+(gx+5).toFixed(1)+'" y="'+(TOP-16)+'" fill="#8D99A4" font-size="8" '+
-      'font-weight="600" letter-spacing="1.2">'+
-      m.toLocaleDateString('en-GB',{month:'short'}).toUpperCase()+'</text>';
+      'font-weight="600">'+m.toLocaleDateString('en-GB',{month:'short'}).toUpperCase()+'</text>';
     m=new Date(m.getFullYear(),m.getMonth()+1,1);
   }
   const nx=x(today);
-
   const rows=live.map(function(o,i){
-    const y=TOP+i*ROW;
-    const dd=new Date(o.ddate), od=o.odate?new Date(o.odate):null;
+    const y=TOP+i*ROW, dd=new Date(o.ddate), od=o.odate?new Date(o.odate):null;
     const start=Math.max(x(od&&od>t0?od:t0),L), end=x(dd);
     const bx=Math.min(start,end-4), bw=Math.max(4,end-Math.min(start,end-4));
     const days=Math.round((dd-today)/86400000);
-    // one flat colour per bar, chosen by how close the date is
     const col=days<0?'#D01A45':(days<=14?'#D4600C':(days<=45?'#B8860B':'#0F9E6E'));
-    return '<g>'+
-      '<rect x="'+L+'" y="'+(y+3)+'" width="'+PW+'" height="11" fill="#EDF1F5"/>'+
-      '<rect x="'+bx.toFixed(1)+'" y="'+(y+3)+'" width="'+bw.toFixed(1)+
-        '" height="11" fill="'+col+'"/>'+
+    return '<g><rect x="'+L+'" y="'+(y+3)+'" width="'+PW+'" height="11" fill="#EDF1F5"/>'+
+      '<rect x="'+bx.toFixed(1)+'" y="'+(y+3)+'" width="'+bw.toFixed(1)+'" height="11" fill="'+col+'"/>'+
       '<rect x="'+(end-1.5).toFixed(1)+'" y="'+(y+1)+'" width="2.5" height="15" fill="#0E1418"/>'+
-      '<text x="0" y="'+(y+12)+'" fill="#0E1418" font-size="8.5" font-weight="600">'+
-        o.id+'</text>'+
+      '<text x="0" y="'+(y+12)+'" fill="#0E1418" font-size="8.5" font-weight="600">'+o.id+'</text>'+
       '<text x="'+(W-R+6)+'" y="'+(y+12)+'" fill="#0E1418" font-size="8">'+
-        dd.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+
-        '<tspan fill="'+(days<0?'#D01A45':'#8D99A4')+'">  '+
-        (days<0?Math.abs(days)+'d late':days+'d')+'</tspan></text></g>';
+      dd.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+
+      '<tspan fill="'+(days<0?'#D01A45':'#8D99A4')+'">  '+
+      (days<0?Math.abs(days)+'d late':days+'d')+'</tspan></text></g>';
   }).join('');
-
   return '<svg viewBox="0 0 '+W+' '+H+'" width="'+W+'" height="'+H+
-    '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">'+
-    grid+rows+
+    '" xmlns="http://www.w3.org/2000/svg">'+grid+rows+
     '<line x1="'+nx.toFixed(1)+'" y1="'+(TOP-12)+'" x2="'+nx.toFixed(1)+'" y2="'+(H-8)+
     '" stroke="#0E1418" stroke-width="1.2" stroke-dasharray="3 3"/>'+
     '<text x="'+(nx+4).toFixed(1)+'" y="'+(H-1)+'" fill="#0E1418" font-size="7.5" '+
-    'font-weight="700" letter-spacing="1.2">TODAY</text></svg>';
+    'font-weight="700">TODAY</text></svg>';
 }
 
-function weeklyPlan(){
+function weeklyPlanBody(){
   const today=new Date(); today.setHours(0,0,0,0);
   const dl=function(o){ return o.ddate?Math.round((new Date(o.ddate)-today)/DAY):null; };
   const urgent=function(o){ return PINS.indexOf(o.id)>=0; };
   const dd=function(d){ return d?new Date(d).toLocaleDateString('en-GB',
       {day:'numeric',month:'short',year:'numeric'}):'\u2014'; };
-  const ddShort=function(d){ return d?new Date(d).toLocaleDateString('en-GB',
+  const ds=function(d){ return d?new Date(d).toLocaleDateString('en-GB',
       {day:'numeric',month:'short'}):'\u2014'; };
-
   const live=LIVE.filter(function(o){return o.bal>0;}).slice().sort(function(a,b){
     const ua=urgent(a)?0:1, ub=urgent(b)?0:1;
     if(ua!==ub) return ua-ub;
@@ -2441,7 +2449,6 @@ function weeklyPlan(){
     if(p===null) return 1; if(q===null) return -1;
     return p-q;
   });
-
   const FK=['S','F','C','RF'];
   const FN={S:'Scissors',F:'Forceps',C:'Dress/Tissue',RF:'Ready Finish'};
   const FC={S:'#1272CC',F:'#8A3FD1',C:'#0F9E6E',RF:'#B8860B'};
@@ -2461,17 +2468,17 @@ function weeklyPlan(){
     const m=split(o), d=dl(o), late=(d!==null&&d<0);
     return '<tr'+(urgent(o)?' class="u"':'')+'>'+
       '<td class="ord"><b>'+o.id+'</b>'+(urgent(o)?'<span class="tag">URG</span>':'')+
-        '<span class="cu">'+o.cust+'</span></td>'+
-      '<td class="dt'+(late?' late':'')+'">'+ddShort(o.ddate)+
-        '<span class="cu">'+(d===null?'no date':(d<0?Math.abs(d)+'d late':d+'d'))+'</span></td>'+
-      FK.map(function(f){
-        return '<td class="n'+(m[f]?'':' z')+'">'+(m[f]?fmt(m[f]):'\u2013')+'</td>'; }).join('')+
+      '<span class="cu">'+o.cust+'</span></td>'+
+      '<td class="dt'+(late?' late':'')+'">'+ds(o.ddate)+
+      '<span class="cu">'+(d===null?'no date':(d<0?Math.abs(d)+'d late':d+'d'))+'</span></td>'+
+      FK.map(function(f){return '<td class="n'+(m[f]?'':' z')+'">'+
+        (m[f]?fmt(m[f]):'\u2013')+'</td>';}).join('')+
       '<td class="n tot">'+fmt(o.bal)+'</td></tr>';
   }).join('');
 
   const famRows=FK.filter(function(f){return famBal[f];}).map(function(f){
     const per=req?Math.ceil(famBal[f]/req.days):0;
-    return '<tr><td><span class="dot" style="background:'+FC[f]+'"></span>'+FN[f]+'</td>'+
+    return '<tr><td><span class="fdot" style="background:'+FC[f]+'"></span>'+FN[f]+'</td>'+
       '<td class="n">'+fmt(famBal[f])+'</td><td class="n">'+(per?fmt(per):'\u2013')+'</td>'+
       '<td class="n">'+(per?fmt(per*week):'\u2013')+'</td>'+
       '<td class="n">'+(per?fmt(per*week*4):'\u2013')+'</td>'+
@@ -2488,152 +2495,82 @@ function weeklyPlan(){
     if(t<=eom) return 'This month';
     return 'Later';
   };
-  const near=live.filter(function(o){
-    const b=bucket(o); return b==='Overdue'||b==='This week'||b==='This month'; });
+  const near=live.filter(function(o){const b=bucket(o);
+    return b==='Overdue'||b==='This week'||b==='This month';});
   const dueRows=near.length?near.map(function(o){
-      const b=bucket(o);
-      return '<tr><td><span class="pill '+(b==='Overdue'?'r':(b==='This week'?'o':'a'))+'">'+
-        b+'</span></td><td><b>'+o.id+'</b></td><td>'+o.cust+'</td><td>'+ddShort(o.ddate)+
-        '</td><td class="n tot">'+fmt(o.bal)+'</td></tr>';
-    }).join('')
+    const b=bucket(o);
+    return '<tr><td><span class="pill '+(b==='Overdue'?'r':(b==='This week'?'o':'a'))+'">'+b+
+      '</span></td><td><b>'+o.id+'</b></td><td>'+o.cust+'</td><td>'+ds(o.ddate)+
+      '</td><td class="n tot">'+fmt(o.bal)+'</td></tr>';}).join('')
     :'<tr><td colspan="5" class="dim">Nothing due before the end of the month.</td></tr>';
   const cnt=function(b){ return live.filter(function(o){return bucket(o)===b;}).length; };
 
   const monday=new Date(today); monday.setDate(today.getDate()-((today.getDay()+6)%7));
   const sunday=new Date(monday); sunday.setDate(monday.getDate()+6);
-  const chart=wkTimeline(live,640);
+  const head=function(title,page){
+    return '<div class="wktop"><div><img src="logo.png" alt="Professional">'+
+      '<h1>'+title+'</h1></div><div class="when"><div class="sub">Week of</div>'+
+      '<div><b>'+ds(monday)+' \u2013 '+dd(sunday)+'</b></div>'+
+      '<div class="dim">Page '+page+' of 2</div></div></div>';
+  };
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8">
-<title>Weekly production plan ${ddShort(monday)} to ${dd(sunday)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-*{box-sizing:border-box;margin:0;padding:0;
-  -webkit-print-color-adjust:exact;print-color-adjust:exact}
-body{font-family:Inter,"Helvetica Neue",Helvetica,Arial,sans-serif;color:#0E1418;
-  background:#DFE3E7;font-size:10px;line-height:1.4}
-.sheet{width:190mm;padding:0;margin:8mm auto;background:#fff;
-  box-shadow:0 2px 14px rgba(0,0,0,.15);padding:10mm}
-.top{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
-  border-bottom:2px solid #0E1418;padding-bottom:7px;margin-bottom:10px}
-.top img{height:30px;display:block;margin-bottom:4px}
-h1{font-size:15px;font-weight:600;letter-spacing:-.02em}
-.when{text-align:right;font-size:9.5px;color:#57646F;line-height:1.45}
-.when b{font-size:11px;color:#0E1418}
-.sub{color:#8D99A4;font-size:8px;letter-spacing:.15em;text-transform:uppercase;font-weight:600}
-h2{font-size:9px;letter-spacing:.15em;text-transform:uppercase;font-weight:600;color:#8D99A4;
-  margin:11px 0 5px;padding-bottom:4px;border-bottom:1px solid #E1E6EA}
-h2:first-of-type{margin-top:0}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#E1E6EA;
-  border:1px solid #E1E6EA}
-.kpi{background:#fff;padding:6px 9px}
-.kpi .k{font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:#8D99A4;font-weight:600}
-.kpi .v{font-size:17px;font-weight:600;letter-spacing:-.03em;line-height:1.15}
-.kpi .v.bad{color:#D01A45}
-table{width:100%;border-collapse:collapse;font-size:9.5px}
-th{text-align:left;font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:#8D99A4;
-  font-weight:600;padding:4px 5px;border-bottom:1.3px solid #0E1418;white-space:nowrap}
-th.n,td.n{text-align:right}
-td{padding:3px 5px;border-bottom:1px solid #EEF1F4;vertical-align:top}
-tr.u td{background:#FFF4F7}
-td.ord b{font-size:10px}
-.cu{display:block;color:#8D99A4;font-size:7.5px;line-height:1.3}
-td.dt{white-space:nowrap}td.dt.late{color:#D01A45;font-weight:600}
-td.n{font-variant-numeric:tabular-nums}td.n.z{color:#C6CDD4}
-td.tot{font-weight:600}
-tfoot td{border-top:1.3px solid #0E1418;border-bottom:0;font-weight:600;padding-top:5px}
-.tag{display:inline-block;background:#D01A45;color:#fff;font-size:6.5px;font-weight:700;
-  letter-spacing:.06em;padding:1px 3px;margin-left:4px;border-radius:2px;vertical-align:1px}
-.pill{display:inline-block;font-size:7.5px;font-weight:700;letter-spacing:.06em;padding:1px 5px;
-  border-radius:2px;white-space:nowrap}
-.pill.r{background:#FCE4EA;color:#D01A45}
-.pill.o{background:#FDEAD9;color:#D4600C}
-.pill.a{background:#FAF1D6;color:#B8860B}
-.dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:5px}
-.dim{color:#8D99A4}
-.note{color:#8D99A4;font-size:8px;margin-top:4px}
-.chart{border:1px solid #E1E6EA;padding:6px}
-.chart svg{display:block}
-.foot{margin-top:10px;border-top:1px solid #E1E6EA;padding-top:4px;display:flex;
-  justify-content:space-between;color:#8D99A4;font-size:7.5px}
-.bar-print{position:fixed;top:0;left:0;right:0;background:#0E1418;color:#fff;padding:9px 16px;
-  display:flex;justify-content:space-between;align-items:center;font-size:12px;z-index:9}
-.bar-print button{font:inherit;font-size:12px;font-weight:600;padding:7px 16px;border:0;
-  background:#fff;color:#0E1418;cursor:pointer;border-radius:2px}
-.spacer{height:40px}
-@media print{
-  /* let the printer own the margins; the sheet just fills what is left */
-  @page{size:A4 portrait;margin:11mm}
-  body{background:#fff;font-size:9.5px}
-  .bar-print,.spacer{display:none}
-  .sheet{width:auto;margin:0;padding:0;box-shadow:none;break-after:page;page-break-after:always}
-  .sheet:last-child{break-after:auto;page-break-after:auto}
-  table,.kpis,.chart,tr{break-inside:avoid;page-break-inside:avoid}
-  h2{break-after:avoid;page-break-after:avoid}
-}
-</style></head><body>
-<div class="bar-print">
-  <span>Two pages &middot; print double-sided</span>
-  <button onclick="window.print()">Print / Save as PDF</button>
-</div><div class="spacer"></div>
+  return '<div class="wksheet">'+head('Weekly Production Plan',1)+
+    '<div class="kpis">'+
+      '<div class="kpi"><div class="k">Live orders</div><div class="v">'+live.length+'</div></div>'+
+      '<div class="kpi"><div class="k">Pieces to pack</div><div class="v">'+fmt(totalBal)+'</div></div>'+
+      '<div class="kpi"><div class="k">Needed per day</div><div class="v">'+(req?fmt(req.rate):'\u2013')+'</div></div>'+
+      '<div class="kpi"><div class="k">Overdue</div><div class="v '+(overdue.length?'bad':'')+'">'+
+        overdue.length+'</div></div></div>'+
+    '<h2>Every order, and what each family owes</h2>'+
+    '<table><thead><tr><th>Order</th><th>Due</th>'+
+      FK.map(function(f){return '<th class="n">'+FN[f]+'</th>';}).join('')+
+      '<th class="n">To pack</th></tr></thead><tbody>'+orderRows+'</tbody>'+
+      '<tfoot><tr><td colspan="2">TOTAL \u00b7 '+live.length+' orders</td>'+
+      FK.map(function(f){return '<td class="n tot">'+fmt(famBal[f])+'</td>';}).join('')+
+      '<td class="n tot">'+fmt(totalBal)+'</td></tr></tfoot></table>'+
+    '<p class="note">Sorted by due date, urgent first. Figures are pieces still to pack.</p>'+
+    '<div class="wkfoot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span>'+
+    '<span>Page 1</span></div></div>'+
 
-<div class="sheet">
-  <div class="top">
-    <div><img src="logo.png" alt="Professional"><h1>Weekly Production Plan</h1></div>
-    <div class="when"><div class="sub">Week of</div>
-      <div><b>${ddShort(monday)} \u2013 ${dd(sunday)}</b></div>
-      <div class="dim">Page 1 of 2</div></div>
-  </div>
-  <div class="kpis">
-    <div class="kpi"><div class="k">Live orders</div><div class="v">${live.length}</div></div>
-    <div class="kpi"><div class="k">Pieces to pack</div><div class="v">${fmt(totalBal)}</div></div>
-    <div class="kpi"><div class="k">Needed per day</div><div class="v">${req?fmt(req.rate):'\u2013'}</div></div>
-    <div class="kpi"><div class="k">Overdue</div><div class="v ${overdue.length?'bad':''}">${overdue.length}</div></div>
-  </div>
-  <h2>Every order, and what each family owes</h2>
-  <table><thead><tr><th>Order</th><th>Due</th>
-    ${FK.map(function(f){return '<th class="n">'+FN[f]+'</th>';}).join('')}
-    <th class="n">To pack</th></tr></thead>
-    <tbody>${orderRows}</tbody>
-    <tfoot><tr><td colspan="2">TOTAL \u00b7 ${live.length} orders</td>
-      ${FK.map(function(f){return '<td class="n tot">'+fmt(famBal[f])+'</td>';}).join('')}
-      <td class="n tot">${fmt(totalBal)}</td></tr></tfoot></table>
-  <p class="note">Sorted by due date, urgent first. Figures are pieces still to pack.</p>
-  <div class="foot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span><span>Page 1</span></div>
-</div>
-
-<div class="sheet">
-  <div class="top">
-    <div><img src="logo.png" alt="Professional"><h1>Capacity &amp; Timeline</h1></div>
-    <div class="when"><div class="sub">Week of</div>
-      <div><b>${ddShort(monday)} \u2013 ${dd(sunday)}</b></div>
-      <div class="dim">Page 2 of 2</div></div>
-  </div>
-  <h2>Delivery timeline &middot; next three months</h2>
-  <div class="chart">${chart}</div>
-  <h2>How much has to come off the line</h2>
-  ${req?`<div class="kpis" style="grid-template-columns:repeat(3,1fr)">
-    <div class="kpi"><div class="k">Every working day</div><div class="v">${fmt(req.rate)}</div></div>
-    <div class="kpi"><div class="k">Every week (${week} days)</div><div class="v">${fmt(req.rate*week)}</div></div>
-    <div class="kpi"><div class="k">Every month</div><div class="v">${fmt(req.rate*week*4)}</div></div>
-  </div><p class="note">To clear everything by ${dd(req.end)} \u00b7 ${req.days} working days left.</p>`
-  :'<p class="dim">No target date set on the Targets sheet.</p>'}
-  <table style="margin-top:7px"><thead><tr><th>Family</th><th class="n">To pack</th>
-    <th class="n">Per day</th><th class="n">Per week</th><th class="n">Per month</th>
-    <th class="n">Share</th></tr></thead><tbody>${famRows}</tbody></table>
-  <h2>Due before the end of the month</h2>
-  <table><thead><tr><th>When</th><th>Order</th><th>Customer</th><th>Due</th>
-    <th class="n">To pack</th></tr></thead><tbody>${dueRows}</tbody></table>
-  <p class="note">Overdue ${cnt('Overdue')} \u00b7 this week ${cnt('This week')} \u00b7
-     this month ${cnt('This month')} \u00b7 later ${cnt('Later')}. Everything is listed on page 1.</p>
-  <div class="foot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span><span>Page 2</span></div>
-</div>
-</body></html>`;
+    '<div class="wksheet">'+head('Capacity &amp; Timeline',2)+
+    '<h2>Delivery timeline \u00b7 next three months</h2>'+
+    '<div class="chart">'+wkTimeline(live,640)+'</div>'+
+    '<h2>How much has to come off the line</h2>'+
+    (req?'<div class="kpis" style="grid-template-columns:repeat(3,1fr)">'+
+      '<div class="kpi"><div class="k">Every working day</div><div class="v">'+fmt(req.rate)+'</div></div>'+
+      '<div class="kpi"><div class="k">Every week ('+week+' days)</div><div class="v">'+
+        fmt(req.rate*week)+'</div></div>'+
+      '<div class="kpi"><div class="k">Every month</div><div class="v">'+
+        fmt(req.rate*week*4)+'</div></div></div>'+
+      '<p class="note">To clear everything by '+dd(req.end)+' \u00b7 '+req.days+
+      ' working days left.</p>':'<p class="dim">No target date set on the Targets sheet.</p>')+
+    '<table style="margin-top:7px"><thead><tr><th>Family</th><th class="n">To pack</th>'+
+      '<th class="n">Per day</th><th class="n">Per week</th><th class="n">Per month</th>'+
+      '<th class="n">Share</th></tr></thead><tbody>'+famRows+'</tbody></table>'+
+    '<h2>Due before the end of the month</h2>'+
+    '<table><thead><tr><th>When</th><th>Order</th><th>Customer</th><th>Due</th>'+
+      '<th class="n">To pack</th></tr></thead><tbody>'+dueRows+'</tbody></table>'+
+    '<p class="note">Overdue '+cnt('Overdue')+' \u00b7 this week '+cnt('This week')+
+      ' \u00b7 this month '+cnt('This month')+' \u00b7 later '+cnt('Later')+
+      '. Everything is listed on page 1.</p>'+
+    '<div class="wkfoot"><span>Professional Hospital Furnishers \u00b7 Sialkot</span>'+
+    '<span>Page 2</span></div></div>';
 }
 
 function openWeekly(){
-  const w=window.open('','_blank');
-  if(!w){ alert('Your browser blocked the new window. Allow pop-ups for this page and try again.'); return; }
-  w.document.open(); w.document.write(weeklyPlan()); w.document.close();
+  if(!document.getElementById('wkcss')){
+    const st=document.createElement('style');
+    st.id='wkcss'; st.textContent=WKCSS; document.head.appendChild(st);
+  }
+  let v=document.getElementById('wkveil');
+  if(!v){ v=document.createElement('div'); v.id='wkveil'; document.body.appendChild(v); }
+  v.innerHTML='<div id="wkbar"><span>Weekly production plan \u00b7 two pages, print double-sided</span>'+
+    '<span><button class="ghost" id="wkclose">Close</button>'+
+    '<button id="wkprint">Print / Save as PDF</button></span></div>'+
+    '<div id="wkroot">'+weeklyPlanBody()+'</div>';
+  v.style.display='block';
+  document.getElementById('wkprint').onclick=function(){ window.print(); };
+  document.getElementById('wkclose').onclick=function(){ v.style.display='none'; };
 }
 
 
@@ -2872,168 +2809,7 @@ function wpDue(o){
 }
 const WPNAME={S:'Scissors',F:'Forceps',C:'Dressing / Tissue Forceps',RF:'Ready Finish'};
 
-function buildWeekly(){
-  const today=new Date(); today.setHours(0,0,0,0);
-  const orders=LIVE.slice().sort(function(a,b){
-    const pa=PINS.indexOf(a.id)<0?1:0, pb=PINS.indexOf(b.id)<0?1:0;
-    if(pa!==pb) return pa-pb;                       // anything marked urgent first
-    const da=wpDays(a,today), db=wpDays(b,today);
-    if(da===null) return 1; if(db===null) return -1;
-    return da-db;                                   // then nearest delivery
-  });
-  const bal=orders.reduce(function(s,o){return s+o.bal;},0);
-  const req=requiredPerDay();
-  const week=DATA.target&&DATA.target.week===5?5:6;
 
-  /* ---- 1. every order, family by family ---- */
-  let list='';
-  orders.forEach(function(o){
-    const f=wpFamSplit(o), dl=wpDays(o,today);
-    const urgent=PINS.indexOf(o.id)>=0, late=(dl!==null&&dl<0);
-    list+='<div class="wp-ord'+(urgent?' urgent':(late?' late':''))+'">'+
-      '<div class="top"><div><span class="id">'+o.id+'</span> '+
-      '<span class="cu">'+o.cust+'</span>'+
-      (urgent?'<span class="wp-flag">URGENT</span>':'')+
-      (late?'<span class="wp-flag">LATE</span>':'')+'</div>'+
-      '<div style="text-align:right"><div class="dd">'+wpDue(o)+'</div>'+
-      '<div class="dl">'+(dl===null?'set a date'
-        :(dl<0?Math.abs(dl)+' days late':dl+' days left'))+
-      ' \u00b7 '+fmt(o.bal)+' still to pack</div></div></div>'+
-      '<div class="wp-fam">'+
-      ['S','F','C','RF'].filter(function(k){return f[k]>0;}).map(function(k){
-        return '<div><span>'+WPNAME[k]+'</span><b>'+fmt(f[k])+'</b></div>';
-      }).join('')+'</div></div>';
-  });
-
-  /* ---- 3. capacity ---- */
-  const famLeft={S:0,F:0,C:0,RF:0};
-  orders.forEach(function(o){o.items.forEach(function(i){
-    const b=i.qty-i.packed; if(b>0) famLeft[wfamOf(i)]+=b;
-  });});
-  let capRows='', capNote='';
-  if(req){
-    capNote='To clear everything by '+
-      req.end.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})+
-      ', with '+req.days+' working days left.';
-    capRows=['S','F','C','RF'].filter(function(k){return famLeft[k]>0;}).map(function(k){
-      const d=Math.ceil(famLeft[k]/req.days);
-      return '<tr><td><b>'+WPNAME[k]+'</b></td>'+
-        '<td class="n">'+fmt(famLeft[k])+'</td>'+
-        '<td class="n"><b>'+fmt(d)+'</b></td>'+
-        '<td class="n">'+fmt(d*week)+'</td>'+
-        '<td class="n">'+fmt(d*week*4)+'</td>'+
-        '<td class="n">'+Math.round(famLeft[k]/bal*100)+'%</td></tr>';
-    }).join('')+
-    '<tr style="border-top:2px solid var(--line)"><td><b>TOTAL</b></td>'+
-    '<td class="n"><b>'+fmt(bal)+'</b></td><td class="n"><b>'+fmt(req.rate)+'</b></td>'+
-    '<td class="n"><b>'+fmt(req.rate*week)+'</b></td>'+
-    '<td class="n"><b>'+fmt(req.rate*week*4)+'</b></td><td class="n">100%</td></tr>';
-  }
-
-  /* ---- 4/5/6. due this week, month, year ---- */
-  function bucket(lo,hi){
-    return orders.filter(function(o){
-      const d=wpDays(o,today); return d!==null&&d>=lo&&d<=hi;
-    });
-  }
-  const overdue=orders.filter(function(o){const d=wpDays(o,today);return d!==null&&d<0;});
-  function tbl(rows,empty){
-    if(!rows.length) return '<p style="color:var(--dim);font-size:13px">'+empty+'</p>';
-    return '<table><thead><tr><th>Order</th><th>Customer</th><th>Delivery</th>'+
-      '<th style="text-align:right">Days</th><th style="text-align:right">To pack</th>'+
-      '<th style="text-align:right">Done</th></tr></thead><tbody>'+
-      rows.map(function(o){
-        const d=wpDays(o,today);
-        return '<tr><td><b>'+o.id+'</b>'+(PINS.indexOf(o.id)>=0?
-          '<span class="wp-flag">URGENT</span>':'')+'</td><td>'+o.cust+'</td>'+
-          '<td>'+wpDue(o)+'</td>'+
-          '<td class="n"'+(d<0?' style="color:var(--overdue)"':'')+'>'+
-          (d<0?Math.abs(d)+' late':d)+'</td>'+
-          '<td class="n">'+fmt(o.bal)+'</td>'+
-          '<td class="n">'+Math.round(o.pc*100)+'%</td></tr>';
-      }).join('')+'</tbody></table>';
-  }
-
-  const wk=bucket(0,7), mo=bucket(0,31), yr=bucket(0,365);
-  const wkQty=wk.reduce(function(s,o){return s+o.bal;},0);
-  const moQty=mo.reduce(function(s,o){return s+o.bal;},0);
-
-  const monday=new Date(today);
-  monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
-  const sunday=new Date(monday); sunday.setDate(sunday.getDate()+6);
-
-  return '<div class="wp-head">'+
-    '<div><h1>Weekly Production Plan</h1>'+
-    '<div class="sub">'+monday.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+
-    ' \u2013 '+sunday.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+
-    ' \u00b7 Professional Hospital Furnishers</div></div>'+
-    '<img src="logo.png" alt="">'+
-    '</div>'+
-
-    '<div class="wp-sec"><h2>Where we stand</h2><div class="wp-kpi">'+
-      '<div><div class="k">Live orders</div><div class="v">'+orders.length+'</div></div>'+
-      '<div><div class="k">Still to pack</div><div class="v">'+fmt(bal)+'</div></div>'+
-      '<div><div class="k">Due this week</div><div class="v">'+wk.length+'</div></div>'+
-      '<div><div class="k">Due this month</div><div class="v">'+mo.length+'</div></div>'+
-      '<div><div class="k">Overdue</div><div class="v" style="color:var(--overdue)">'+
-        overdue.length+'</div></div>'+
-      (req?'<div><div class="k">Needed per day</div><div class="v">'+fmt(req.rate)+
-        '</div></div>':'')+
-    '</div></div>'+
-
-    '<div class="wp-sec"><h2>1 &middot; Every order, by family &mdash; nearest delivery first</h2>'+
-      list+'</div>'+
-
-    '<div class="wp-sec"><h2>2 &middot; Delivery timeline</h2>'+
-      '<div id="wptl"></div></div>'+
-
-    '<div class="wp-sec"><h2>3 &middot; Capacity needed</h2>'+
-      (req?'<p style="color:var(--mute);font-size:13.5px;margin-bottom:12px">'+capNote+'</p>'+
-      '<table><thead><tr><th>Family</th><th style="text-align:right">Still to pack</th>'+
-      '<th style="text-align:right">Per day</th><th style="text-align:right">Per week</th>'+
-      '<th style="text-align:right">Per month</th><th style="text-align:right">Share</th>'+
-      '</tr></thead><tbody>'+capRows+'</tbody></table>'+
-      '<p style="color:var(--dim);font-size:12px;margin-top:10px">'+
-      'Based on a '+week+'-day working week. Per month assumes four working weeks.</p>'
-      :'<p style="color:var(--dim);font-size:13px">Set a target date on the '+
-       'Targets sheet and this fills in.</p>')+'</div>'+
-
-    '<div class="wp-sec"><h2>4 &middot; Due this week &mdash; '+fmt(wkQty)+' pieces</h2>'+
-      tbl(wk,'Nothing due in the next seven days.')+'</div>'+
-    '<div class="wp-sec"><h2>5 &middot; Due this month &mdash; '+fmt(moQty)+' pieces</h2>'+
-      tbl(mo,'Nothing due in the next month.')+'</div>'+
-    '<div class="wp-sec"><h2>6 &middot; Due this year</h2>'+
-      tbl(yr,'Nothing dated inside the next year.')+'</div>'+
-    (overdue.length?'<div class="wp-sec"><h2>Overdue &mdash; deal with these first</h2>'+
-      tbl(overdue,'')+'</div>':'')+
-
-    '<p style="color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);'+
-    'padding-top:12px">Produced from the production board on '+
-    new Date().toLocaleString('en-GB',{day:'numeric',month:'long',year:'numeric',
-      hour:'2-digit',minute:'2-digit'})+'. Figures come from the order tracker sheet.</p>';
-}
-
-function showWeekly(){
-  if(!DATA) return;
-  $('#wpsheet').innerHTML=buildWeekly();
-  $('#wp').classList.remove('hide');
-  // reuse the timeline, drawn to the width of the printed sheet
-  const holder=$('#wptl');
-  if(holder){
-    const keep=$('#timeline').innerHTML;
-    const w=holder.clientWidth||holder.getBoundingClientRect().width||960;
-    Object.defineProperty(holder,'id',{value:'timeline',configurable:true});
-    renderTimeline();
-    Object.defineProperty(holder,'id',{value:'wptl',configurable:true});
-    $('#timeline') && ($('#timeline').innerHTML=keep);
-  }
-  document.body.style.overflow='hidden';
-}
-function hideWeekly(){
-  $('#wp').classList.add('hide');
-  document.body.style.overflow='';
-  if(DATA&&TAB==='timeline') renderTimeline();
-}
 
 /* ---------------- drill-downs ---------------- */
 function openModal(t,s,b){$('#mtitle').textContent=t;$('#msub').textContent=s;
@@ -3430,12 +3206,6 @@ window.addEventListener('appinstalled',()=>$('#install').classList.add('hide'));
 
 $('#report').onclick=function(){ if(DATA) showReport(); };
 $('#weekly').onclick=function(){ if(DATA) openWeekly(); };
-$('#weekly').onclick=showWeekly;
-$('#wpclose').onclick=hideWeekly;
-$('#wpprint').onclick=function(){ window.print(); };
-document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'&&!$('#wp').classList.contains('hide')) hideWeekly();
-});
 $('#pinreset').onclick=function(){ PINS=[]; savePins(); if(DATA) render(DATA); };
 
 /* ---------------- dark / light ---------------- */
