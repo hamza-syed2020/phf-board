@@ -2,13 +2,18 @@
 
    The page itself is fetched from the network FIRST, so an installed app is
    never a version behind; the cached copy is only used when there is no
-   signal. Big unchanging files (the spreadsheet reader, the icons) come
-   straight from the cache so it still opens instantly.
+   signal. Big unchanging files (the spreadsheet reader, the PDF reader, the
+   icons) come straight from the cache so it still opens instantly.
 
    Data lives in Google Sheets, which is a different origin, so those requests
-   pass through untouched and are never served stale. */
+   pass through untouched and are never served stale.
 
-const CACHE = 'phf-board-v14';
+   IMPORTANT: only successful replies are ever stored, and a stored reply is
+   only trusted if it was successful. An earlier version kept whatever came
+   back — including "file not found" — and then handed that same failure out
+   for ever, long after the missing file had been uploaded. */
+
+const CACHE = 'phf-board-v15';        // bumped: throws away every older cache
 const SHELL = [
   './',
   './index.html',
@@ -35,6 +40,14 @@ function isPage(req, url) {
       || /\.html$/i.test(url.pathname);
 }
 
+/* store a copy, but only when the reply was a good one */
+function keep(req, res) {
+  if (!res || !res.ok || res.status === 206) return res;
+  const copy = res.clone();
+  caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+  return res;
+}
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -45,11 +58,7 @@ self.addEventListener('fetch', e => {
   if (isPage(req, url)) {                          // always try for the latest board
     e.respondWith(
       fetch(req, { cache: 'no-store' })
-        .then(res => {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put('./index.html', copy));
-          return res;
-        })
+        .then(res => { keep('./index.html', res); return res; })
         .catch(() => caches.match('./index.html')
                   .then(hit => hit || caches.match(req, { ignoreSearch: true })))
     );
@@ -58,12 +67,13 @@ self.addEventListener('fetch', e => {
 
   e.respondWith(                                   // assets: cache first, refresh behind
     caches.match(req, { ignoreSearch: true }).then(hit => {
-      const net = fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy));
-        return res;
-      }).catch(() => hit);
-      return hit || net;
+      if (hit && hit.ok) {                         // a good copy — use it, refresh quietly
+        fetch(req).then(res => keep(req, res)).catch(() => {});
+        return hit;
+      }
+      return fetch(req)                            // nothing usable stored — go and get it
+        .then(res => keep(req, res))
+        .catch(err => { if (hit) return hit; throw err; });
     })
   );
 });
