@@ -14,6 +14,7 @@
 <link rel="icon" href="icon-192.png">
 <link media="all" onerror="this.remove()" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <script src="xlsx.full.min.js"></script>
+<script src="pdf.min.js"></script>
 <script>
 if(typeof XLSX==='undefined'){
   document.write('<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/scr'+'ipt>');
@@ -305,6 +306,21 @@ td b{color:var(--ink)}
   box-shadow:0 0 12px rgba(43,255,176,.55)}
 .card.pinned{border-color:rgba(43,255,176,.4)}
 
+.dropzone{border:2px dashed var(--line);background:var(--panel);padding:26px 20px;
+  text-align:center;margin-bottom:14px;transition:.18s}
+.dropzone.over{border-color:var(--ontrack);background:var(--panel2);
+  box-shadow:0 0 30px rgba(43,255,176,.13) inset}
+.dropzone h3{font-family:"Archivo","Segoe UI",sans-serif;font-size:16px;margin-bottom:5px}
+.dropzone p{color:var(--dim);font-size:12.5px;margin-bottom:12px}
+.impline{display:grid;grid-template-columns:150px 1fr;gap:10px;padding:4px 0;font-size:13px}
+.impline b{font-family:"IBM Plex Mono","Consolas",monospace}
+.impok{color:var(--ontrack);font-weight:600}
+.impbad{color:var(--overdue);font-weight:600}
+.impwarn{background:var(--panel2);border-left:3px solid var(--watch);padding:11px 14px;
+  margin:12px 0;font-size:12.5px;color:var(--mute)}
+.impwarn.bad{border-left-color:var(--overdue)}
+.impwarn.good{border-left-color:var(--ontrack)}
+
 /* ---------------- section tabs ---------------- */
 .nav{display:flex;gap:2px;margin-bottom:20px;border-bottom:1px solid var(--line);
   overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -595,6 +611,7 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
       <span class="dot" id="dot"></span><span id="srctext"></span>
       <span id="checktext" style="color:var(--dim)"></span>
       <button id="theme" title="Switch between dark and light">Light</button>
+      <button id="addorder">Add order</button>
       <button id="weekly">Weekly plan</button>
       <button id="report">Daily plan</button>
       <button id="install" class="hide">Install app</button>
@@ -675,6 +692,12 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
   </section>
 
   <section data-tab="orders">
+    <div class="dropzone" id="dropzone">
+      <h3>Add an order</h3>
+      <p>Drag a production order sheet here, or choose the file.</p>
+      <button id="pickpdf">Choose a PDF</button>
+      <input type="file" id="pdffile" accept="application/pdf,.pdf" class="hide">
+    </div>
     <div class="shead"><h2>Orders</h2><span id="ordnote"></span>
       <span id="pinnote" style="color:var(--ontrack)"></span>
       <button id="pinreset" class="hide" style="margin-left:auto">Reset order</button>
@@ -687,6 +710,12 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
       <span style="color:var(--mute)">click any order for its items</span>
     </div>
     <div class="orders" id="orders"></div>
+  </section>
+
+  <section data-tab="done">
+    <div class="shead"><h2>Completed orders</h2><span id="donenote"></span></div>
+    <div id="donestats"></div>
+    <div id="donetable"></div>
   </section>
 
   <section data-tab="orders">
@@ -740,7 +769,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v24 · 26 Aug 2026';
+const VERSION='v26 · 3 Sep 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -822,6 +851,7 @@ function parse(wb,stamp){
       kind:String(r[ix('Type')]||'Order').trim(),
       odate:toDate(r[ix('Order Date')]),ddate:toDate(r[ix('Delivery Date')]),
       status:String(r[ix('Status')]||'').trim(),
+      done:toDate(r[ix('Completed On')]),
       note:String(r[ix('Notes')]||'').trim(),items:[]});
   }
   if(!orders.length) throw new Error('The Orders sheet has no rows the board can read.');
@@ -966,7 +996,7 @@ function parse(wb,stamp){
     }
   }
   // capacity settings live in Excel so they can be changed there
-  let target=null;
+  let target=null, writeUrl='';
   const ts=wb.Sheets['Targets'];
   if(ts){
     const tg=grid(ts), find=lab=>{
@@ -975,8 +1005,10 @@ function parse(wb,stamp){
     target={date:toDate(find('target ship-by date')),
             week:num(find('working days per week'))||6,
             hol:num(find('holidays to deduct'))||0};
+    writeUrl=String(find('write-back link')||find('write back link')||'').trim();
   }
-  return {orders,samples,target,output,pmap:pmap,famOut:famOut,stamp:stamp||Date.now()};
+  return {orders,samples,target,output,pmap:pmap,famOut:famOut,
+          writeUrl:writeUrl,stamp:stamp||Date.now()};
 }
 
 /* ---------------- history ---------------- */
@@ -1288,7 +1320,8 @@ function complaintModal(cust){
 /* ---------------- section tabs ---------------- */
 const TABS=[{k:'overview',n:'Overview'},{k:'timeline',n:'Timeline'},
             {k:'factory',n:'Factory'},{k:'production',n:'Production'},
-            {k:'orders',n:'Orders'},{k:'followups',n:'Follow-ups'}];
+            {k:'orders',n:'Orders'},{k:'done',n:'Completed'},
+            {k:'followups',n:'Follow-ups'}];
 const TABKEY='phf_tab_v1';
 let TAB=jget(TABKEY)||'overview';
 function showTab(k){
@@ -1305,6 +1338,7 @@ function showTab(k){
   if(k==='timeline') renderTimeline();
   if(k==='production') renderLine();
   if(k==='factory') renderFactory();
+  if(k==='done') renderDone();
   window.scrollTo(0,0);
 }
 function renderNav(){
@@ -1871,42 +1905,6 @@ document.addEventListener('click',function(e){
    Departments are read left to right from the Daily Output tab, which is the
    order work actually flows in. Everything below follows from that.
    ------------------------------------------------------------------- */
-function lineStats(){
-  const o=DATA.output;
-  if(!o||!o.days.length) return null;
-  const active=o.days.filter(function(d){return d.total>0;});
-  const nd=Math.max(1,active.length);
-  const per={};
-  o.depts.forEach(function(dep){
-    let tot=0; const daily=[];
-    o.days.forEach(function(d){
-      let s=0; o.fams.forEach(function(f){ s+=d.v[dep+'|'+f]||0; });
-      if(d.total>0) daily.push(s);
-      tot+=s;
-    });
-    const avg=tot/nd;
-    const mx=daily.length?Math.max.apply(null,daily):0;
-    const sd=daily.length>1
-      ? Math.sqrt(daily.reduce(function(a,x){return a+(x-avg)*(x-avg);},0)/(daily.length-1)) : 0;
-    per[dep]={dept:dep,total:tot,avg:avg,max:mx,
-              idle:daily.filter(function(x){return x===0;}).length,
-              cv:avg>0?sd/avg:0};
-  });
-  const gaps=[];
-  for(let i=0;i<o.depts.length-1;i++){
-    const a=o.depts[i],b=o.depts[i+1];
-    gaps.push({from:a,to:b,build:per[a].total-per[b].total,
-               perDay:(per[a].total-per[b].total)/nd});
-  }
-  const running=o.depts.filter(function(d){return per[d].total>0;});
-  let slow=null;
-  running.forEach(function(d){ if(!slow||per[d].avg<per[slow].avg) slow=d; });
-  const last=o.depts[o.depts.length-1];
-  return {o:o,per:per,gaps:gaps,days:nd,slow:slow,running:running,
-          lastDept:last,lastAvg:per[last]?per[last].avg:0,
-          firstDay:active.length?active[0].date:null,
-          lastDay:active.length?active[active.length-1].date:null};
-}
 
 function requiredPerDay(){
   const t=DATA.target;
@@ -2309,6 +2307,541 @@ function renderCapacity(){
 /* ---------------- daily report ----------------
    Production only — no sampling, no complaints. Written to be pasted
    straight into a message to the production manager. ------------------- */
+/* ---------------- writing back to the Google Sheet ----------------
+   A small script lives on his own spreadsheet and accepts the order.
+   Sent as plain text so the browser does not ask Google for permission
+   first, which Apps Script cannot answer. --------------------------- */
+const SHEETKEY='phf_sheetapi_v1';
+
+function sheetSetup(){
+  const cfg=jget(SHEETKEY)||{};
+  openModal('Let the board write to your sheet','one-time setup, about ten minutes',
+    '<ol style="font-size:13.5px;line-height:1.9;padding-left:20px;color:var(--mute)">'+
+    '<li>Open your <b>PHF Order Tracker</b> in Google Sheets.</li>'+
+    '<li>Menu: <b>Extensions &rarr; Apps Script</b>. A new tab opens.</li>'+
+    '<li>Delete whatever code is there. Copy the code below and paste it in.</li>'+
+    '<li>Click the <b>save</b> icon.</li>'+
+    '<li>Click <b>Deploy &rarr; New deployment</b>. Press the gear beside '+
+      '"Select type" and choose <b>Web app</b>.</li>'+
+    '<li>Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>. Click <b>Deploy</b>.</li>'+
+    '<li>Google will ask you to allow it. Choose your account, then '+
+      '<b>Advanced &rarr; Go to (project) &rarr; Allow</b>.</li>'+
+    '<li>Copy the <b>Web app URL</b> it gives you and paste it below.</li>'+
+    '</ol>'+
+    '<p style="font-size:12.5px;color:var(--dim);margin:6px 0 10px">'+
+    '"Anyone" means anyone holding the address. The secret word below is what '+
+    'actually protects it, so make it something only you know.</p>'+
+    '<pre style="white-space:pre-wrap;font-family:\'IBM Plex Mono\',Consolas,monospace;'+
+    'font-size:11.5px;line-height:1.6;background:var(--panel2);border:1px solid var(--line);'+
+    'padding:14px;margin:0 0 14px;max-height:260px;overflow:auto" id="gscode"></pre>'+
+    '<button id="gscopy">Copy the code</button>'+
+    '<div style="margin-top:16px;display:grid;gap:8px;max-width:560px">'+
+      '<label style="font-size:12px;color:var(--dim)">Web app URL'+
+      '<input id="gsurl" style="width:100%;padding:9px;background:var(--panel2);'+
+      'border:1px solid var(--line);color:var(--ink);font:inherit;font-size:12.5px" '+
+      'value="'+(cfg.url||'')+'" placeholder="https://script.google.com/macros/s/..."></label>'+
+      '<label style="font-size:12px;color:var(--dim)">Secret word (must match the code)'+
+      '<input id="gskey" style="width:100%;padding:9px;background:var(--panel2);'+
+      'border:1px solid var(--line);color:var(--ink);font:inherit;font-size:12.5px" '+
+      'value="'+(cfg.key||'phf-'+Math.random().toString(36).slice(2,8))+'"></label>'+
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
+        '<button id="gssave">Save and test</button>'+
+        '<span id="gsmsg" style="color:var(--dim);font-size:12.5px"></span></div>'+
+    '</div>');
+
+  const keyNow=function(){ return $('#gskey').value.trim(); };
+  const paint=function(){ $('#gscode').textContent=APPSCRIPT.replace('__SECRET__',keyNow()); };
+  paint();
+  $('#gskey').oninput=paint;
+  $('#gscopy').onclick=function(){
+    const t=$('#gscode').textContent;
+    if(navigator.clipboard) navigator.clipboard.writeText(t);
+    else { const ta=document.createElement('textarea'); ta.value=t;
+           document.body.appendChild(ta); ta.select();
+           try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
+    $('#gscopy').textContent='Copied';
+    setTimeout(function(){ $('#gscopy').textContent='Copy the code'; },1600);
+  };
+  $('#gssave').onclick=async function(){
+    const url=$('#gsurl').value.trim(), key=keyNow();
+    if(!/^https:\/\/script\.google\.com\//.test(url)){
+      $('#gsmsg').textContent='That does not look like a Web app URL.'; return; }
+    $('#gsmsg').textContent='Testing\u2026';
+    jset(SHEETKEY,{url:url,key:key});
+    const r=await sheetCall({action:'ping'});
+    $('#gsmsg').textContent=r.ok?'Working. You can close this.'
+      :'Could not reach it: '+(r.error||'no reply');
+  };
+}
+
+async function sheetCall(payload){
+  const cfg=jget(SHEETKEY);
+  if(!cfg||!cfg.url) return {ok:false,error:'not set up yet'};
+  payload.key=cfg.key;
+  try{
+    const res=await fetch(cfg.url,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(payload)});
+    const txt=await res.text();
+    try{ return JSON.parse(txt); }
+    catch(e){ return {ok:false,error:'unexpected reply from the script'}; }
+  }catch(e){ return {ok:false,error:e.message}; }
+}
+
+async function writeOrder(res){
+  const msg=$('#impmsg'); const btn=$('#impwrite');
+  if(btn) btn.disabled=true;
+  if(msg) msg.textContent='Writing to your sheet\u2026';
+  const h=res.header;
+  const r=await sheetCall({action:'addOrder',
+    order:{id:h.cus_order, cust:h.cus_order.split('-')[0],
+           orderDate:h.order_date, deliveryDate:h.del_date,
+           quality:h.quality||''},
+    rows:res.rows.map(function(x){
+      return {code:x.item_code, desc:x.description, cat:x.category||'',
+              qty:x.qty, vendor:x.vendor||''}; })});
+  if(r.ok){
+    if(msg) msg.textContent='Added. Refreshing the board\u2026';
+    lastMod=null;
+    await poll(true);
+    if(msg) msg.textContent='Done \u2014 '+h.cus_order+' is on your sheet.';
+    if(btn) btn.textContent='Added';
+  } else {
+    if(btn) btn.disabled=false;
+    if(msg) msg.textContent='Failed: '+(r.error||'unknown');
+  }
+}
+
+/* stamp the day an order first shows as fully packed */
+async function stampCompletions(){
+  if(!DATA||!DATA.orders) return;
+  const cfg=jget(SHEETKEY);
+  if(!cfg||!cfg.url) return;
+  const today=new Date();
+  const iso=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+
+            String(today.getDate()).padStart(2,'0');
+  const due=DATA.orders.filter(function(o){
+    return o.qty>0 && o.packed>=o.qty && !o.completed; });
+  for(const o of due){
+    const r=await sheetCall({action:'setCompleted',id:o.id,date:iso});
+    if(r.ok) o.completed=new Date(iso);
+  }
+  if(due.length) render(DATA);
+}
+
+const APPSCRIPT=`/** PHF production board - lets the board add orders to this sheet.
+ *  Paste this whole thing into Extensions > Apps Script, then deploy as a
+ *  Web app with access set to Anyone. Nothing runs unless the secret matches. */
+
+var SECRET = '__SECRET__';
+
+function doPost(e) {
+  var out = { ok: false };
+  try {
+    var d = JSON.parse(e.postData.contents);
+    if (d.key !== SECRET) throw new Error('wrong secret');
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    if (d.action === 'ping') {
+      out = { ok: true, sheet: ss.getName() };
+
+    } else if (d.action === 'addOrder') {
+      out = addOrder(ss, d.order, d.rows);
+
+    } else if (d.action === 'setCompleted') {
+      out = setCompleted(ss, d.id, d.date);
+
+    } else {
+      throw new Error('unknown action');
+    }
+  } catch (err) {
+    out = { ok: false, error: String(err.message || err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function addOrder(ss, order, rows) {
+  // check everything BEFORE creating anything, so a problem never leaves
+  // a half-written order behind
+  var os = ss.getSheetByName('Orders');
+  if (!os) return { ok: false, error: 'no tab called Orders' };
+  if (ss.getSheetByName(order.id)) return { ok: false, error: 'that tab already exists' };
+
+  var sh = ss.insertSheet(order.id);
+  var head = ['Item Code','Description','Category','Qty To Produce','At Purchase',
+              'In Production','Packed','Not Started','% Complete','Check',
+              'Also Ordered By','Source Note'];
+  sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
+
+  var body = rows.map(function (r) {
+    return [r.code, r.desc, r.cat, r.qty, r.qty, 0, 0, '', '', '', '', r.vendor || ''];
+  });
+  if (body.length) sh.getRange(2, 1, body.length, head.length).setValues(body);
+
+  var last = body.length + 1;
+  for (var i = 2; i <= last; i++) {
+    sh.getRange(i, 8).setFormula('=MAX(0,D' + i + '-E' + i + '-F' + i + '-G' + i + ')');
+    sh.getRange(i, 9).setFormula('=IF(D' + i + '=0,0,G' + i + '/D' + i + ')');
+    sh.getRange(i, 10).setFormula('=IF(E' + i + '+F' + i + '+G' + i + '>D' + i +
+      ',"OVER by "&TEXT(E' + i + '+F' + i + '+G' + i + '-D' + i + ',"#,##0"),"")');
+  }
+  var t = last + 1;
+  sh.getRange(t, 1).setValue('TOTAL').setFontWeight('bold');
+  ['D','E','F','G','H'].forEach(function (c) {
+    sh.getRange(c + t).setFormula('=SUM(' + c + '2:' + c + last + ')').setFontWeight('bold');
+  });
+  sh.getRange(t, 9).setFormula('=IF(D' + t + '=0,0,G' + t + '/D' + t + ')');
+  sh.setFrozenRows(1);
+
+  var col = os.getRange(1, 1, os.getLastRow(), 1).getValues();
+  var totalRow = 0;
+  for (var r = 1; r < col.length; r++) {
+    if (String(col[r][0]).trim().toUpperCase() === 'TOTAL') { totalRow = r + 1; break; }
+  }
+  var hasTotal = totalRow > 0;
+  if (!hasTotal) totalRow = os.getLastRow() + 1;
+
+  os.insertRowBefore(totalRow);
+  var n = totalRow;
+  var prev = n - 1;
+  os.getRange(n, 1, 1, 7).setValues([[
+    order.id, order.cust, 'Order',
+    parseDate_(order.orderDate), parseDate_(order.deliveryDate),
+    'Not Started', rows.length]]);
+  // copy the formulas down from the order above, but only if there is a real
+  // order above — row 1 is headings and would paste words into number columns
+  if (prev >= 2) os.getRange(prev, 8, 1, 6).copyTo(os.getRange(n, 8, 1, 6));
+  // a sum sitting directly under the orders does not stretch by itself when a
+  // row is pushed in above it, so point every TOTAL sum at the new last row
+  if (hasTotal) stretchTotals_(os, n + 1);
+  return { ok: true, added: rows.length, tab: order.id };
+}
+
+/* widen each =SUM() on the TOTAL row so it reaches the last order row.
+   Anything that is not a plain single-column SUM is left exactly as it was. */
+function stretchTotals_(os, totalRow) {
+  var last = totalRow - 1;
+  if (last < 2) return;
+  var width = os.getLastColumn();
+  for (var c = 1; c <= width; c++) {
+    var cell = os.getRange(totalRow, c);
+    var f = String(cell.getFormula() || '');
+    var m = f.match(/^=SUM\\(([A-Z]{1,2})(\\d+):([A-Z]{1,2})(\\d+)\\)$/i);
+    if (m && m[1].toUpperCase() === m[3].toUpperCase() && Number(m[4]) < last) {
+      cell.setFormula('=SUM(' + m[1] + m[2] + ':' + m[3] + last + ')');
+    }
+  }
+}
+
+function setCompleted(ss, id, date) {
+  var os = ss.getSheetByName('Orders');
+  if (!os) return { ok: false, error: 'no tab called Orders' };
+  var head = os.getRange(1, 1, 1, os.getLastColumn()).getValues()[0];
+  var cCol = head.indexOf('Completed On') + 1;
+  if (!cCol) {
+    cCol = os.getLastColumn() + 1;
+    os.getRange(1, cCol).setValue('Completed On').setFontWeight('bold');
+  }
+  var ids = os.getRange(1, 1, os.getLastRow(), 1).getValues();
+  for (var r = 1; r < ids.length; r++) {
+    if (String(ids[r][0]).trim() === id) {
+      if (!os.getRange(r + 1, cCol).getValue()) {
+        os.getRange(r + 1, cCol).setValue(new Date(date));
+      }
+      return { ok: true };
+    }
+  }
+  return { ok: false, error: 'order not found' };
+}
+
+function parseDate_(s) {
+  var m = String(s).match(/^(\\d{1,2})-([A-Za-z]{3})-(\\d{4})$/);
+  if (!m) return s;
+  var mo = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
+             .indexOf(m[2].toLowerCase());
+  return new Date(+m[3], mo, +m[1]);
+}`;
+
+/* ---------------- reading a production order sheet ----------------
+   Form FM7-05/00. Proven against every order sheet processed so far.
+
+   The form has a fixed geometry, so columns are found by their x position.
+   Rows are found from the Sr. number in the left-hand column: everything
+   between one Sr number and the next belongs to that item. */
+
+const OC = {                       // x bands, in points, taken from the form
+  packed:[419.4,446.7], semi:[446.7,469.1], forging:[469.1,497.1],
+  h1:[497.1,523.0], h2:[523.0,547.5], openpo:[547.5,577.7],
+  tco:[577.7,604.8], topurch:[604.8,633.5], pono:[633.5,671.1],
+  vendor:[671.1,710.8]
+};
+
+function oNum(s){
+  s=String(s==null?'':s).trim().replace(/,/g,'');
+  if(s===''||s==='-') return 0;
+  const neg=/^\(.*\)$/.test(s);
+  s=s.replace(/[()]/g,'');
+  const v=parseFloat(s);
+  if(!isFinite(v)) return null;
+  return neg?-v:v;
+}
+
+/* group words into visual lines, then join left to right */
+function oLines(ws){
+  const s=ws.slice().sort(function(a,b){
+    const d=Math.round(a.top/3)-Math.round(b.top/3);
+    return d||a.x0-b.x0;
+  });
+  const out=[]; let cur=[], top=null;
+  s.forEach(function(w){
+    if(top===null||Math.abs(w.top-top)<=3){ cur.push(w); if(top===null) top=w.top; }
+    else { out.push({top:top,text:cur.map(function(x){return x.text;}).join(' ')});
+           cur=[w]; top=w.top; }
+  });
+  if(cur.length) out.push({top:top,text:cur.map(function(x){return x.text;}).join(' ')});
+  return out;
+}
+function oIn(ws,x0,x1,t0,t1){
+  return ws.filter(function(w){ return w.x0>=x0-0.5&&w.x0<x1&&w.top>t0&&w.top<t1; });
+}
+
+/* one page of pdf.js text items -> plain word objects with a top-left origin */
+function oWords(items,pageHeight){
+  const out=[];
+  items.forEach(function(it){
+    const t=String(it.str==null?'':it.str);
+    if(!t.trim()) return;
+    out.push({text:t.trim(), x0:it.transform[4], x1:it.transform[4]+(it.width||0),
+              top:pageHeight-it.transform[5]});
+  });
+  return out;
+}
+
+function oHeader(ws){
+  const near=function(a,b,lo,hi){
+    return ws.filter(function(w){ return w.x0>=a&&w.x0<=b&&w.top>=lo&&w.top<=hi; })
+             .sort(function(p,q){return p.x0-q.x0;})
+             .map(function(w){return w.text;}).join(' ').trim();
+  };
+  return {order_date:near(340,470,50,70), cus_order:near(600,740,50,70),
+          del_date:near(800,960,50,70), item_qty:near(340,470,78,95),
+          quality:near(700,800,78,95)};
+}
+
+/* the whole document */
+function parseOrderPages(pages){
+  let header=null;
+  const marks=[];          // where each category heading sits, in reading order
+  const rawRows=[];
+  const totalStrips=[];
+
+  pages.forEach(function(pg,pi){
+    const ws=oWords(pg.items,pg.height);
+    if(pi===0) header=oHeader(ws);
+    const ymin=(pi===0)?174:39;
+    const body=ws.filter(function(w){ return w.top>ymin-1; });
+    const key=function(top){ return pi*10000+top; };   // one running scale for the document
+
+    oLines(body).forEach(function(L){
+      const band=body.filter(function(w){ return Math.abs(w.top-L.top)<=3; });
+      if(/Total Items/.test(L.text)){
+        const ni=band.filter(function(w){return w.x0>=240&&w.x0<=292;})
+                     .map(function(w){return w.text;}).join(' ');
+        const nq=band.filter(function(w){return w.x0>=352&&w.x0<=404;})
+                     .map(function(w){return w.text;}).join(' ');
+        totalStrips.push({k:key(L.top),items:oNum(ni),qty:oNum(nq)});
+        return;
+      }
+      const first=band.sort(function(a,b){return a.x0-b.x0;})[0];
+      if(first&&first.x0>=166&&first.x0<=182&&L.text.length<60&&!/^\d/.test(L.text)){
+        marks.push({k:key(L.top),name:L.text.trim()});
+      }
+    });
+
+    const srs=body.filter(function(w){
+        return w.x0>=168&&w.x1<=192&&/^\d+$/.test(w.text); })
+      .sort(function(a,b){return a.top-b.top;});
+    srs.forEach(function(sr,i){
+      const a=sr.top-11;
+      const b=(i+1<srs.length)?srs[i+1].top-11:1e9;
+      const rec={k:key(sr.top), sr:parseInt(sr.text,10)};
+      const codes=oLines(oIn(body,190.5,236.7,a,b));
+      rec.item_code=codes.length?codes[0].text.trim():'';
+      rec.alt_code=codes.length>1?codes[1].text.trim():'';
+      const dsc=oIn(body,236.7,419.4,a,b).filter(function(w){ return w.top<sr.top+11; });
+      rec.description=oLines(dsc).map(function(l){return l.text;}).join(' ').trim();
+      Object.keys(OC).forEach(function(kk){
+        const ls=oLines(oIn(body,OC[kk][0],OC[kk][1],a,b));
+        rec[kk+'_1']=ls.length?ls[0].text.trim():'';
+        rec[kk+'_2']=ls.length>1?ls[1].text.trim():'';
+      });
+      rawRows.push(rec);
+    });
+  });
+
+  marks.sort(function(x,y){return x.k-y.k;});
+  // an item belongs to the last heading printed above it
+  const catAt=function(k){
+    let name=null;
+    for(let i=0;i<marks.length;i++){ if(marks[i].k<=k) name=marks[i].name; else break; }
+    return name;
+  };
+
+  const rows=[], bad=[];
+  rawRows.forEach(function(r){
+    r.category=catAt(r.k);
+    const parts=((r.tco_1+' '+r.tco_2).trim()).split('/').map(function(s){return s.trim();});
+    if(parts.length!==2){ bad.push(r.sr); return; }
+    r.qty=oNum(parts[0]); r.book=oNum(parts[1]);
+    r.vendor=(r.vendor_1+' '+r.vendor_2).trim();
+    if(r.qty===null){ bad.push(r.sr); return; }
+    rows.push(r);
+  });
+
+  const catTotals=totalStrips.map(function(t){ return {cat:catAt(t.k),items:t.items,qty:t.qty}; });
+
+  // the form prints its own subtotals; check every one of them
+  const catMismatch=[];
+  catTotals.forEach(function(c){
+    const mine=rows.filter(function(r){ return r.category===c.cat; });
+    const q=mine.reduce(function(s,r){return s+r.qty;},0);
+    if(mine.length!==c.items||Math.abs(q-c.qty)>0.001)
+      catMismatch.push({cat:c.cat,got:mine.length,gotQty:q,want:c.items,wantQty:c.qty});
+  });
+
+  const total=rows.reduce(function(s,r){return s+r.qty;},0);
+  const stated=oNum(header.item_qty);
+  return {header:header, rows:rows, catTotals:catTotals, catMismatch:catMismatch,
+          unreadable:bad, total:total, stated:stated,
+          ok:(bad.length===0 && catMismatch.length===0 &&
+              stated!==null && Math.abs(total-stated)<0.001)};
+}
+
+
+/* ---------------- bringing an order in ---------------- */
+let IMPORTED=null;
+
+async function readOrderPdf(file){
+  if(typeof pdfjsLib==='undefined') throw new Error('The PDF reader did not load. Check pdf.min.js sits beside this page.');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='pdf.worker.min.js';
+  const buf=await file.arrayBuffer();
+  const doc=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;
+  const pages=[];
+  for(let i=1;i<=doc.numPages;i++){
+    const p=await doc.getPage(i);
+    pages.push({items:(await p.getTextContent()).items,
+                height:p.getViewport({scale:1}).height});
+  }
+  return parseOrderPages(pages);
+}
+
+function famOfRow(r){ return wfamOf({code:r.item_code,cat:r.category}); }
+
+function importPreview(res,fileName){
+  IMPORTED=res;
+  const h=res.header;
+  const exists=DATA&&DATA.orders.some(function(o){return o.id===h.cus_order;});
+  const fam={S:0,F:0,C:0,RF:0};
+  res.rows.forEach(function(r){ fam[famOfRow(r)]+=r.qty; });
+  const FN={S:'Scissors',F:'Forceps',C:'Dress/Tissue',RF:'Ready Finish'};
+
+  let verdict;
+  if(!res.ok){
+    verdict='<div class="impwarn bad"><b>This did not add up, so nothing will be written.</b><br>'+
+      (res.stated===null?'The ITEM/QTY box could not be read.':
+        'The lines total '+fmt(res.total)+' but the sheet says '+fmt(res.stated)+'.')+
+      (res.unreadable.length?'<br>Rows that could not be read: '+res.unreadable.join(', '):'')+
+      (res.catMismatch.length?'<br>Section totals that disagree: '+
+        res.catMismatch.map(function(c){return c.cat;}).join(', '):'')+
+      '<br><br>Send the file over and it can be done by hand instead.</div>';
+  } else if(exists){
+    verdict='<div class="impwarn"><b>'+h.cus_order+' is already on your sheet.</b><br>'+
+      'Adding it again would duplicate it. Delete the existing tab first if you meant to replace it.</div>';
+  } else {
+    verdict='<div class="impwarn good"><b>Read cleanly.</b> Every line and every section '+
+      'total matches the figures printed on the form.</div>';
+  }
+
+  const line=function(k,v){ return '<div class="impline"><span style="color:var(--dim)">'+k+
+    '</span><b>'+v+'</b></div>'; };
+
+  const canWrite=res.ok&&!exists;
+  const cfg=jget(SHEETKEY);
+  const btns=canWrite
+    ? (cfg&&cfg.url
+        ? '<button id="impwrite">Add to my sheet</button>'
+        : '<button id="impsetup">Set up writing to the sheet</button>')+
+      '<button id="impdl">Download to import by hand</button>'
+    : '<button id="impdl">Download anyway</button>';
+
+  openModal('Order read from '+fileName,
+    h.cus_order+' \u00b7 '+res.rows.length+' lines \u00b7 '+fmt(res.total)+' pieces',
+    verdict+
+    line('Order number',h.cus_order)+
+    line('Customer',h.cus_order.split('-')[0])+
+    line('Order date',h.order_date)+
+    line('Delivery date',h.del_date)+
+    line('Quality',h.quality||'\u2014')+
+    line('Line items',res.rows.length)+
+    line('Total pieces',fmt(res.total)+' <span style="color:var(--dim)">'+
+      (res.stated!==null?'(form says '+fmt(res.stated)+')':'')+'</span>')+
+    '<div class="impline"><span style="color:var(--dim)">By family</span><b>'+
+      ['S','F','C','RF'].filter(function(f){return fam[f];})
+        .map(function(f){return FN[f]+' '+fmt(fam[f]);}).join(' \u00b7 ')+'</b></div>'+
+    '<div style="display:flex;gap:8px;margin:16px 0 6px;flex-wrap:wrap">'+btns+
+      '<span id="impmsg" style="align-self:center;color:var(--dim);font-size:12.5px"></span></div>'+
+    '<table style="margin-top:8px"><thead><tr><th>#</th><th>Item</th><th>Description</th>'+
+      '<th>Section</th><th style="text-align:right">Qty</th></tr></thead><tbody>'+
+      res.rows.slice(0,120).map(function(r){
+        return '<tr><td class="n">'+r.sr+'</td><td class="code">'+r.item_code+'</td>'+
+          '<td>'+r.description+'</td><td>'+(r.category||'\u2014')+'</td>'+
+          '<td class="n">'+fmt(r.qty)+'</td></tr>';
+      }).join('')+'</tbody></table>'+
+    (res.rows.length>120?'<p style="color:var(--dim);font-size:12px;margin-top:8px">Showing the first 120 of '+
+      res.rows.length+' lines.</p>':''));
+
+  const dl=$('#impdl'); if(dl) dl.onclick=function(){ downloadImport(res); };
+  const wr=$('#impwrite'); if(wr) wr.onclick=function(){ writeOrder(res); };
+  const su=$('#impsetup'); if(su) su.onclick=function(){ sheetSetup(); };
+}
+
+/* a CSV the sheet can import, for when writing is not set up */
+function downloadImport(res){
+  const h=res.header;
+  const lines=[['Item Code','Description','Category','Qty To Produce',
+                'At Purchase','In Production','Packed'].join(',')];
+  const q=function(s){ return '"'+String(s==null?'':s).replace(/"/g,'""')+'"'; };
+  res.rows.forEach(function(r){
+    lines.push([q(r.item_code),q(r.description),q(r.category),r.qty,r.qty,0,0].join(','));
+  });
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=h.cus_order+'.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+}
+
+async function handlePdf(file){
+  const dz=$('#dropzone');
+  if(dz) dz.querySelector('p').textContent='Reading '+file.name+'\u2026';
+  try{
+    const res=await readOrderPdf(file);
+    importPreview(res,file.name);
+  }catch(e){
+    openModal('Could not read that file','',
+      '<div class="impwarn bad"><b>'+(e.message||'Unknown problem')+'</b><br><br>'+
+      'This reader expects a PHF production order sheet (Form FM7-05/00). '+
+      'Balance reports and proforma invoices are a different layout and still '+
+      'need to be done by hand.</div>');
+  }
+  if(dz) dz.querySelector('p').textContent='Drag a production order sheet here, or choose the file.';
+}
+
+document.addEventListener('click',function(e){
+  if(e.target.closest('#pickpdf')){ $('#pdffile').click(); }
+});
+
 /* ---------------- weekly production plan ----------------
    Rendered inside this page, not a new window. A blank popup has no address,
    so relative paths like logo.png cannot resolve there, and browsers treat
@@ -2791,25 +3324,89 @@ function showReport(){
   };
 }
 
-/* ---------------- weekly production plan ----------------
-   A printable sheet for the shop floor. Same look as the board, laid out for
-   A4 so "Save as PDF" gives something you can hand over. ----------------- */
-function wpFamSplit(o){
-  const f={S:0,F:0,C:0,RF:0};
-  o.items.forEach(function(i){ f[wfamOf(i)]+=i.qty; });
-  return f;
+/* ---------------- completed orders ----------------
+   An order counts as finished when everything is packed, or when you have
+   marked it Shipped. The completion date comes from a "Completed On" column
+   on your Orders sheet if you keep one; otherwise the board works it out from
+   the day its own record first saw the order fully packed. ------------- */
+function doneDate(o){
+  if(o.done) return {d:new Date(o.done),src:'sheet'};
+  const h=jget(HKEY)||{};
+  const days=Object.keys(h).sort();
+  for(let i=0;i<days.length;i++){
+    const s=h[days[i]].s; let q=0,p=0;
+    for(const k in s){ if(k.indexOf(o.id+'|')===0){ p+=s[k][2]; q+=s[k][3]; } }
+    if(q>0&&p>=q) return {d:new Date(days[i]),src:'board'};
+  }
+  return null;
 }
-function wpDays(o,today){
-  if(!o.ddate) return null;
-  return Math.round((new Date(o.ddate)-today)/DAY);
-}
-function wpDue(o){
-  return o.ddate?new Date(o.ddate).toLocaleDateString('en-GB',
-    {day:'numeric',month:'long',year:'numeric'}):'no date set';
-}
-const WPNAME={S:'Scissors',F:'Forceps',C:'Dressing / Tissue Forceps',RF:'Ready Finish'};
+function renderDone(){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const all=(DATA&&DATA.orders)?DATA.orders:[];
+  const done=all.filter(function(o){
+    return (o.qty>0&&o.packed>=o.qty)||/shipped/i.test(o.status); });
+  if(!done.length){
+    $('#donenote').textContent='none yet';
+    $('#donestats').innerHTML='';
+    $('#donetable').innerHTML='<div class="bneck" style="border-left-color:var(--line)">'+
+      'No orders are finished yet. An order moves here once every piece is packed, '+
+      'or once you set its Status to Shipped.</div>';
+    return;
+  }
+  const rows=done.map(function(o){
+    const dd=o.ddate?new Date(o.ddate):null;
+    const fin=doneDate(o);
+    const diff=(dd&&fin)?Math.round((fin.d-dd)/DAY):null;
+    return {o:o,dd:dd,fin:fin,diff:diff};
+  }).sort(function(a,b){
+    if(a.fin&&b.fin) return b.fin.d-a.fin.d;
+    if(a.fin) return -1; if(b.fin) return 1;
+    return 0;
+  });
+  const rated=rows.filter(function(r){return r.diff!==null;});
+  const early=rated.filter(function(r){return r.diff<0;}).length;
+  const late=rated.filter(function(r){return r.diff>0;}).length;
+  const onTime=rated.filter(function(r){return r.diff===0;}).length;
+  const avg=rated.length?Math.round(rated.reduce(function(s,r){return s+r.diff;},0)/rated.length):null;
+  const pcs=done.reduce(function(s,o){return s+o.packed;},0);
 
+  $('#donenote').textContent=done.length+' finished · '+fmt(pcs)+' pieces shipped';
+  $('#donestats').innerHTML='<div class="mstat">'+
+    '<div><div class="k">Completed</div><div class="v">'+done.length+'</div></div>'+
+    '<div><div class="k">Pieces</div><div class="v k">'+fmt(pcs)+'</div></div>'+
+    '<div><div class="k">Early</div><div class="v k">'+early+'</div></div>'+
+    '<div><div class="k">On the day</div><div class="v">'+onTime+'</div></div>'+
+    '<div><div class="k">Late</div><div class="v" style="'+
+      (late?'color:var(--overdue)':'')+'">'+late+'</div></div>'+
+    '<div><div class="k">Average</div><div class="v">'+
+      (avg===null?'—':(avg>0?'+'+avg+'d':(avg<0?avg+'d':'0d')))+'</div></div>'+
+    '</div>';
 
+  const fmtD=function(d){ return d?d.toLocaleDateString('en-GB',
+    {day:'numeric',month:'short',year:'numeric'}):'—'; };
+  $('#donetable').innerHTML='<table><thead><tr><th>Order</th><th>Customer</th>'+
+    '<th>Promised</th><th>Finished</th><th style="text-align:right">Early / late</th>'+
+    '<th style="text-align:right">Pieces</th><th>How it went</th></tr></thead><tbody>'+
+    rows.map(function(r){
+      const d=r.diff;
+      const col=d===null?'var(--dim)':(d>0?'var(--overdue)':(d<0?'var(--ontrack)':'var(--watch)'));
+      const word=d===null?'no date recorded'
+        :(d<0?Math.abs(d)+' days early':(d>0?d+' days late':'on the day'));
+      return '<tr><td class="code"><b>'+r.o.id+'</b></td><td>'+r.o.cust+'</td>'+
+        '<td class="n">'+fmtD(r.dd)+'</td>'+
+        '<td class="n">'+fmtD(r.fin?r.fin.d:null)+
+          (r.fin&&r.fin.src==='board'?'<span class="cu" style="color:var(--dim);font-size:10px">'+
+            ' from the board\u2019s own record</span>':'')+'</td>'+
+        '<td class="n" style="color:'+col+';font-weight:600">'+
+          (d===null?'—':(d>0?'+'+d:(d<0?d:'0')))+'</td>'+
+        '<td class="n">'+fmt(r.o.packed)+'</td>'+
+        '<td style="color:'+col+'">'+word+'</td></tr>';
+    }).join('')+'</tbody></table>'+
+    '<p style="color:var(--dim);font-size:12px;margin-top:10px">'+
+    'A minus figure means it shipped before the promised date. To record exact dates, '+
+    'add a <b>Completed On</b> column to your Orders sheet — the board will use it '+
+    'wherever you fill it in.</p>';
+}
 
 /* ---------------- drill-downs ---------------- */
 function openModal(t,s,b){$('#mtitle').textContent=t;$('#msub').textContent=s;
@@ -3150,6 +3747,7 @@ async function poll(force){
     d.orders.forEach(function(o){ if(o.cust&&codes.indexOf(o.cust)<0) codes.push(o.cust); });
     pollComplaints(force,codes.concat(SRC.complaints.extraTabs||[]))
       .then(function(){ if(DATA) render(DATA); });
+    stampCompletions();
     return true;
   }catch(e){ lastFail=e.message; return false; }
 }
@@ -3185,7 +3783,15 @@ $('#reload').onclick=async()=>{if(!await poll(true)) $('#file').click();};
 document.addEventListener('dragleave',e=>{e.preventDefault();$('#drop').classList.remove('over');
   if(DATA&&e.relatedTarget)$('#drop').classList.add('hide');});
 document.addEventListener('drop',e=>{e.preventDefault();$('#drop').classList.remove('over');
-  const f=e.dataTransfer.files[0]; if(f) readFile(f); else if(DATA)$('#drop').classList.add('hide');});
+  const f=e.dataTransfer.files[0];
+  if(f&&/\.pdf$/i.test(f.name)){
+    /* an order sheet, not a spreadsheet — send it to the order reader wherever
+       on the page it was let go of, so the big panel cannot swallow it */
+    if(DATA)$('#drop').classList.add('hide');
+    handlePdf(f);
+  }
+  else if(f) readFile(f);
+  else if(DATA)$('#drop').classList.add('hide');});
 
 /* ---------------- installable app ---------------- */
 if('serviceWorker' in navigator){
@@ -3206,7 +3812,25 @@ window.addEventListener('appinstalled',()=>$('#install').classList.add('hide'));
 
 $('#report').onclick=function(){ if(DATA) showReport(); };
 $('#weekly').onclick=function(){ if(DATA) openWeekly(); };
+$('#addorder').onclick=function(){ if(DATA) $('#pdffile').click(); };
 $('#pinreset').onclick=function(){ PINS=[]; savePins(); if(DATA) render(DATA); };
+$('#pdffile').onchange=function(e){
+  const f=e.target.files[0]; if(f) handlePdf(f); e.target.value='';
+};
+(function(){
+  const dz=$('#dropzone');
+  if(!dz) return;
+  ['dragenter','dragover'].forEach(function(t){
+    dz.addEventListener(t,function(e){ e.preventDefault(); e.stopPropagation();
+      dz.classList.add('over'); }); });
+  ['dragleave','drop'].forEach(function(t){
+    dz.addEventListener(t,function(e){ e.preventDefault(); e.stopPropagation();
+      dz.classList.remove('over'); }); });
+  dz.addEventListener('drop',function(e){
+    const f=e.dataTransfer.files[0];
+    if(f&&/\.pdf$/i.test(f.name)) handlePdf(f);
+  });
+})();
 
 /* ---------------- dark / light ---------------- */
 const THEMEKEY='phf_theme_v1';
