@@ -769,7 +769,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v26 · 3 Sep 2026';
+const VERSION='v27 · 3 Sep 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -2646,10 +2646,23 @@ function parseOrderPages(pages){
     oLines(body).forEach(function(L){
       const band=body.filter(function(w){ return Math.abs(w.top-L.top)<=3; });
       if(/Total Items/.test(L.text)){
-        const ni=band.filter(function(w){return w.x0>=240&&w.x0<=292;})
-                     .map(function(w){return w.text;}).join(' ');
-        const nq=band.filter(function(w){return w.x0>=352&&w.x0<=404;})
-                     .map(function(w){return w.text;}).join(' ');
+        /* Read the two figures out of the printed words themselves, taken
+           left to right. Different versions of the PDF reader chop a line
+           into pieces differently and hand them over in different orders,
+           so anything that depends on where a number sits, or on the order
+           it arrives in, breaks when the reader changes. The printed words
+           never move. */
+        const strip=band.slice().sort(function(a,b){return a.x0-b.x0;})
+                        .map(function(w){return w.text;}).join(' ');
+        let ni=null, nq=null;
+        const m=strip.match(/Total\s*Items\s*:?\s*([\d,]+)[\s\S]*?Total\s*Qty\s*:?\s*([\d,]+)/i);
+        if(m){ ni=m[1]; nq=m[2]; }
+        else {                                   // last resort: use the columns
+          ni=band.filter(function(w){return w.x0>=240&&w.x0<=292;})
+                 .map(function(w){return w.text;}).join(' ');
+          nq=band.filter(function(w){return w.x0>=352&&w.x0<=404;})
+                 .map(function(w){return w.text;}).join(' ');
+        }
         totalStrips.push({k:key(L.top),items:oNum(ni),qty:oNum(nq)});
         return;
       }
