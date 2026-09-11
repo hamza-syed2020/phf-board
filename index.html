@@ -520,11 +520,7 @@ td b{color:var(--ink)}
 .capsub b{color:var(--ink)}
 .rate{color:var(--ontrack);font-weight:600}
 
-/* ---------------- printable weekly plan ---------------- */
-
-  .wp-sec{page-break-inside:avoid}
-  .wp-ord{page-break-inside:avoid}
-}
+/* the weekly plan's print rules live with the weekly plan itself, further down */
 
 #drop{border:1px dashed var(--line);background:var(--panel);padding:58px 30px;text-align:center}
 #drop.over{border-color:var(--ontrack);box-shadow:0 0 34px rgba(43,255,176,.16) inset}
@@ -769,7 +765,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v27 · 3 Sep 2026';
+const VERSION='v28 · 3 Sep 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -2872,7 +2868,7 @@ const WKCSS=`
 #wkroot{color:#0E1418;font-size:10px;line-height:1.4}
 #wkroot *{box-sizing:border-box;margin:0;padding:0;
   -webkit-print-color-adjust:exact;print-color-adjust:exact}
-#wkroot .wksheet{width:190mm;background:#fff;padding:10mm;margin:8mm auto;
+#wkroot .wksheet{width:210mm;background:#fff;padding:12mm 11mm;margin:8mm auto;
   box-shadow:0 2px 14px rgba(0,0,0,.15)}
 #wkroot .wktop{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
   border-bottom:2px solid #0E1418;padding-bottom:7px;margin-bottom:10px}
@@ -2922,15 +2918,25 @@ const WKCSS=`
 #wkroot .wkfoot{margin-top:10px;border-top:1px solid #E1E6EA;padding-top:4px;display:flex;
   justify-content:space-between;color:#8D99A4;font-size:7.5px}
 @media print{
-  @page{size:A4 portrait;margin:11mm}
-  html,body{background:#fff !important}
+  /* No page margin at all. The paper margin is the sheet's own padding instead.
+     This is also what stops the browser printing its own header and footer,
+     because those are drawn in the page margin and there is now no margin to
+     draw them in. That header is where the board's web address was coming
+     from — it was never printed by this page. */
+  @page{size:A4 portrait;margin:0}
+  html,body{background:#fff !important;margin:0 !important;padding:0 !important;
+    min-height:0 !important;height:auto !important}
   body>*{display:none !important}
   body>#wkveil{display:block !important;position:static !important;overflow:visible !important;
-    background:#fff !important}
+    background:#fff !important;margin:0 !important;padding:0 !important}
   #wkbar{display:none !important}
-  #wkroot .wksheet{width:auto !important;margin:0 !important;padding:0 !important;
-    box-shadow:none !important;break-after:page;page-break-after:always}
-  #wkroot .wksheet:last-child{break-after:auto;page-break-after:auto}
+  #wkroot{margin:0 !important;padding:0 !important}
+  #wkroot .wksheet{width:210mm !important;margin:0 !important;padding:12mm 11mm !important;
+    box-shadow:none !important;min-height:0 !important}
+  /* Break BEFORE every sheet after the first, never after the last. A break
+     after the final sheet is what leaves an empty sheet at the end. */
+  #wkroot .wksheet + .wksheet{break-before:page;page-break-before:always}
+  #wkroot .wksheet>*:last-child{margin-bottom:0 !important}
   #wkroot table,#wkroot .kpis,#wkroot .chart,#wkroot tr{break-inside:avoid;page-break-inside:avoid}
   #wkroot h2{break-after:avoid;page-break-after:avoid}
 }`;
@@ -3115,7 +3121,15 @@ function openWeekly(){
     '<button id="wkprint">Print / Save as PDF</button></span></div>'+
     '<div id="wkroot">'+weeklyPlanBody()+'</div>';
   v.style.display='block';
-  document.getElementById('wkprint').onclick=function(){ window.print(); };
+  document.getElementById('wkprint').onclick=function(){
+    /* Belt and braces: if a browser still insists on printing its own header,
+       make sure what it shows is the document title and nothing revealing.
+       The page address itself can only be turned off in the print dialog. */
+    const was=document.title;
+    document.title='Weekly Production Plan';
+    window.print();
+    setTimeout(function(){ document.title=was; },1200);
+  };
   document.getElementById('wkclose').onclick=function(){ v.style.display='none'; };
 }
 
