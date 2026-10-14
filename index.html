@@ -99,6 +99,17 @@ button{font:inherit;font-size:12.5px;padding:6px 13px;border:1px solid var(--lin
   color:var(--mute);border-radius:2px;cursor:pointer;letter-spacing:.04em}
 button:hover{color:var(--ontrack);border-color:var(--ontrack)}
 button:focus-visible{outline:2px solid var(--ontrack);outline-offset:2px}
+/* ---------------- filter bar on the Orders tab ---------------- */
+.filt{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.filt input,.filt select{font:inherit;font-size:12.5px;padding:7px 10px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:2px}
+.filt input{min-width:210px;flex:1 1 210px}
+.filt input:focus,.filt select:focus{outline:none;border-color:var(--ontrack)}
+.filt .fnote{color:var(--dim);font-size:12px;margin-left:auto}
+#filtbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  background:var(--panel);border:1px solid var(--ontrack);border-left-width:3px;
+  padding:8px 13px;margin-bottom:10px;font-size:12.5px;color:var(--mute)}
+#filtbar b{color:var(--ontrack)}
 button.quiet{background:transparent;color:var(--dim)}
 button.quiet:hover{color:var(--ink);border-color:var(--dim)}
 
@@ -640,6 +651,7 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
 </div></div>
 
 <main id="board" class="hide">
+  <div id="filtbar" class="hide"></div>
   <div class="strip" id="strip"></div>
 
   <nav class="nav" id="nav"></nav>
@@ -699,6 +711,22 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
     <div class="shead"><h2>Orders</h2><span id="ordnote"></span>
       <span id="pinnote" style="color:var(--ontrack)"></span>
       <button id="pinreset" class="hide" style="margin-left:auto">Reset order</button>
+    </div>
+    <div class="filt">
+      <input id="fq" type="search" placeholder="Search order number or customer"
+             autocomplete="off" spellcheck="false">
+      <select id="fcust"><option value="">All customers</option></select>
+      <select id="furg">
+        <option value="">Any urgency</option>
+        <option value="attention">Needs attention</option>
+        <option value="overdue">Overdue</option>
+        <option value="behind">Behind</option>
+        <option value="watch">Watch</option>
+        <option value="ontrack">On track</option>
+        <option value="done">Complete</option>
+      </select>
+      <button id="fclear" class="quiet hide">Clear</button>
+      <span class="fnote" id="fnote"></span>
     </div>
     <div class="legend">
       <span><i class="sw p"></i>At purchase</span>
@@ -767,7 +795,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v30 · 14 Oct 2026';
+const VERSION='v31 · 14 Oct 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -1068,6 +1096,37 @@ function risk(o,today){
   return {k:'ontrack',lab:'On track',gap,exp,left};
 }
 const rank={overdue:0,behind:1,watch:2,ongoing:3,ontrack:4,done:5};
+
+/* ---------------- filtering the Orders tab ----------------
+   The filter changes the order cards, the family panel beneath them and the
+   summary strip. Everything else on the board — timeline, capacity, the daily
+   and weekly plans — always shows the whole business, so a filter left on can
+   never quietly change a figure someone is working from. Whenever it is on,
+   a green bar sits above the strip saying so. */
+let FILT={q:'',cust:'',urg:''};
+const filterOn=function(){ return !!(String(FILT.q).trim()||FILT.cust||FILT.urg); };
+function filterOrders(list){
+  if(!filterOn()) return list;
+  const q=String(FILT.q).trim().toLowerCase();
+  return list.filter(function(o){
+    if(FILT.cust && o.cust!==FILT.cust) return false;
+    if(FILT.urg==='attention'){ if(o.r.k!=='overdue'&&o.r.k!=='behind') return false; }
+    else if(FILT.urg && o.r.k!==FILT.urg) return false;
+    if(q){
+      const hay=(o.id+' '+(o.cust||'')+' '+(o.kind||'')+' '+(o.note||'')).toLowerCase();
+      if(hay.indexOf(q)<0) return false;
+    }
+    return true;
+  });
+}
+function filterWords(){
+  const bits=[];
+  if(FILT.cust) bits.push(FILT.cust);
+  if(FILT.urg) bits.push(($('#furg')&&$('#furg').selectedOptions[0]
+    ? $('#furg').selectedOptions[0].textContent : FILT.urg).toLowerCase());
+  if(String(FILT.q).trim()) bits.push('"'+String(FILT.q).trim()+'"');
+  return bits.join(' \u00b7 ');
+}
 const STG={purchase:'At purchase',inprod:'In production',packed:'Packing',none:'Not started'};
 
 /* ---------------- render ---------------- */
@@ -1078,12 +1137,45 @@ function render(d){
     o.ddate=o.ddate?new Date(o.ddate):null; o.r=risk(o,today); return o;});
   O.sort((a,b)=>rank[a.r.k]-rank[b.r.k]||(a.ddate&&b.ddate?a.ddate-b.ddate:0)||b.bal-a.bal);
   const ORDERED=applyPins(O);
-  LIVE=ORDERED.filter(o=>o.r.k!=='done');
-  const hot=ORDERED.filter(o=>o.r.k==='overdue'||o.r.k==='behind');
-  const tq=O.reduce((s,o)=>s+o.qty,0), tp=O.reduce((s,o)=>s+o.packed,0);
-  const idleQ=LIVE.reduce((s,o)=>s+o.pur+o.none,0), inpQ=LIVE.reduce((s,o)=>s+o.inp,0);
-  const soon=LIVE.filter(o=>o.r.left!=null&&o.r.left<=30).length;
+  LIVE=ORDERED.filter(o=>o.r.k!=='done');          /* the whole business, used everywhere else */
+
+  /* If the filter names a customer the sheet no longer has, drop it BEFORE
+     filtering. Done afterwards it left the board showing nothing at all. */
+  if(FILT.cust && !O.some(function(o){return o.cust===FILT.cust;})) FILT.cust='';
+
+  /* the Orders tab and the strip follow the filter; nothing else does */
+  const SHOWN=filterOrders(ORDERED);
+  const SHOWNLIVE=SHOWN.filter(o=>o.r.k!=='done');
+  const hot=SHOWN.filter(o=>o.r.k==='overdue'||o.r.k==='behind');
+  const tq=SHOWN.reduce((s,o)=>s+o.qty,0), tp=SHOWN.reduce((s,o)=>s+o.packed,0);
+  const idleQ=SHOWNLIVE.reduce((s,o)=>s+o.pur+o.none,0),
+        inpQ=SHOWNLIVE.reduce((s,o)=>s+o.inp,0);
+  const soon=SHOWNLIVE.filter(o=>o.r.left!=null&&o.r.left<=30).length;
   const pct=tq?Math.round(tp/tq*100):0;
+
+  /* keep the customer list in step with the sheet, without losing the choice */
+  (function(){
+    const sel=$('#fcust'); if(!sel) return;
+    const codes=[]; O.forEach(function(o){ if(o.cust&&codes.indexOf(o.cust)<0) codes.push(o.cust); });
+    codes.sort();
+    const want='<option value="">All customers</option>'+
+      codes.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('');
+    if(sel.innerHTML!==want){ sel.innerHTML=want; }
+    sel.value=FILT.cust;
+    $('#fq').value=FILT.q;
+    $('#furg').value=FILT.urg;
+    $('#fclear').className=filterOn()?'quiet':'quiet hide';
+    $('#fnote').textContent=filterOn()
+      ? SHOWN.length+' of '+ORDERED.length+' orders' : ORDERED.length+' orders';
+    const bar=$('#filtbar');
+    if(filterOn()){
+      bar.innerHTML='<span>Filtered to <b>'+filterWords()+'</b> \u2014 every figure in the '+
+        'row below counts these '+SHOWN.length+' order'+(SHOWN.length===1?'':'s')+' only.</span>'+
+        '<button id="fclear2" class="quiet" style="margin-left:auto">Show everything</button>';
+      bar.classList.remove('hide');
+      $('#fclear2').onclick=function(){ FILT={q:'',cust:'',urg:''}; if(DATA) render(DATA); };
+    } else bar.classList.add('hide');
+  })();
 
   $('#strip').innerHTML=[
     ['Total ordered',fmt(tq),'',''],
@@ -1092,10 +1184,11 @@ function render(d){
     ['Packed',fmt(tp),'good',''],
     ['Still to produce',fmt(tq-tp),'','click" data-modal="family'],
     ['Complete',pct+'%','',''],
-    ['Live orders',LIVE.length,'',''],
+    ['Live orders',SHOWNLIVE.length,'',''],
     ['Needs attention',hot.length,hot.length?'hot':'',''],
-    ['Open complaints',COMPLAINTS?COMPLAINTS.filter(c=>c.open).length:'—',
-      (COMPLAINTS&&COMPLAINTS.some(c=>c.open))?'hot':'','']
+    ['Open complaints',COMPLAINTS?COMPLAINTS.filter(c=>c.open&&
+        (!FILT.cust||c.cust===FILT.cust)).length:'—',
+      (COMPLAINTS&&COMPLAINTS.some(c=>c.open&&(!FILT.cust||c.cust===FILT.cust)))?'hot':'','']
   ].map(([k,v,c,x])=>`<div class="stat ${c} ${x}"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
 
   // sampling
@@ -1114,8 +1207,10 @@ function render(d){
       </div>`;}).join('');
   } else $('#sampwrap').classList.add('hide');
 
-  $('#ordnote').textContent=hot.length?hot.length+' need attention — shown first':'all orders keeping pace';
-  $('#orders').innerHTML=ORDERED.map(o=>{
+  $('#ordnote').textContent=SHOWN.length===0
+    ? 'nothing matches this filter'
+    : (hot.length?hot.length+' need attention — shown first':'all orders keeping pace');
+  $('#orders').innerHTML=SHOWN.length?SHOWN.map(o=>{
     const pc=Math.round(o.pc*100), ex=Math.round(o.r.exp*100), g=Math.round(o.r.gap*100);
     const due=o.ddate?o.ddate.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):'no date';
     const left=o.r.left!=null?(o.r.left<0?Math.abs(o.r.left)+' days late':o.r.left+' days left')
@@ -1151,19 +1246,24 @@ function render(d){
       <button class="pin${PINS.indexOf(o.id)<0?'':' on'}" data-pin="${o.id}"
         title="${PINS.indexOf(o.id)<0?'Pin to the top of the list':'Unpin'}"
         aria-label="${PINS.indexOf(o.id)<0?'Pin':'Unpin'} ${o.id}">&#9679;</button>
-    </article>`;}).join('');
+    </article>`;}).join('')
+    : '<div class="card" style="text-align:center;color:var(--dim)">'+
+      'No order matches this filter. <button id="fclear3" class="quiet">Show everything</button></div>';
+  const fc3=$('#fclear3');
+  if(fc3) fc3.onclick=function(){ FILT={q:'',cust:'',urg:''}; if(DATA) render(DATA); };
   $('#pinreset').className=PINS.length?'':'hide';
   $('#pinnote').textContent=PINS.length?PINS.length+' pinned':'';
 
   // families
   const fam={};
-  LIVE.forEach(o=>o.items.forEach(i=>{
+  SHOWNLIVE.forEach(o=>o.items.forEach(i=>{
     const f=fam[i.cat]||(fam[i.cat]={qty:0,pur:0,inp:0,packed:0,none:0});
     f.qty+=i.qty;f.pur+=i.pur;f.inp+=i.inp;f.packed+=i.packed;f.none+=i.none;}));
   const fl=Object.entries(fam).map(([k,v])=>({name:k,...v,bal:v.qty-v.packed}))
     .filter(f=>f.bal>0).sort((a,b)=>b.bal-a.bal);
   const mx=Math.max(1,...fl.map(f=>f.bal));
-  $('#famnote').textContent=fl.length+' families · live orders only';
+  $('#famnote').textContent=fl.length+' families · live orders only'+
+    (filterOn()?' · filtered':'');
   $('#fam').innerHTML=fl.map(f=>{
     const w=x=>(x/mx*100).toFixed(2);
     return `<div class="famrow">
@@ -3869,6 +3969,18 @@ $('#report').onclick=function(){ if(DATA) showReport(); };
 $('#weekly').onclick=function(){ if(DATA) openWeekly(); };
 $('#addorder').onclick=function(){ if(DATA) $('#pdffile').click(); };
 $('#pinreset').onclick=function(){ PINS=[]; savePins(); if(DATA) render(DATA); };
+
+/* the filter controls. Redrawing on every keystroke keeps the figures in the
+   strip honest while typing, and 25 orders is nothing to redraw. */
+(function(){
+  const redraw=function(){ if(DATA) render(DATA); };
+  const q=$('#fq'), c=$('#fcust'), u=$('#furg'), x=$('#fclear');
+  if(q) q.oninput=function(){ FILT.q=q.value; redraw(); };
+  if(q) q.onkeydown=function(e){ if(e.key==='Escape'){ e.stopPropagation(); FILT.q=''; q.value=''; redraw(); } };
+  if(c) c.onchange=function(){ FILT.cust=c.value; redraw(); };
+  if(u) u.onchange=function(){ FILT.urg=u.value; redraw(); };
+  if(x) x.onclick=function(){ FILT={q:'',cust:'',urg:''}; redraw(); };
+})();
 $('#pdffile').onchange=function(e){
   const f=e.target.files[0]; if(f) handlePdf(f); e.target.value='';
 };
