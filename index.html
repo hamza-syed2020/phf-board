@@ -767,7 +767,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v29 · 14 Oct 2026';
+const VERSION='v30 · 14 Oct 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -2361,6 +2361,10 @@ function sheetSetup(){
     $('#gscopy').textContent='Copied';
     setTimeout(function(){ $('#gscopy').textContent='Copy the code'; },1600);
   };
+  ['#gsurl','#gskey'].forEach(function(sel){
+    const el=$(sel); if(!el) return;
+    el.onkeydown=function(e){ if(e.key==='Enter'){ e.preventDefault(); $('#gssave').click(); } };
+  });
   const fg=$('#gsforget');
   if(fg) fg.onclick=function(){
     try{ localStorage.removeItem(SHEETKEY); }catch(e){}
@@ -3454,11 +3458,18 @@ function renderDone(){
 
 /* ---------------- drill-downs ---------------- */
 function openModal(t,s,b){$('#mtitle').textContent=t;$('#msub').textContent=s;
-  $('#mbody').innerHTML=b;$('#veil').classList.remove('hide');$('#close').focus();}
+  $('#mbody').innerHTML=b;$('#veil').classList.remove('hide');
+  /* Put the cursor where the work is. Focus used to land on the Close button,
+     so a stray Enter or Space shut the screen and threw away what was typed. */
+  const first=$('#mbody').querySelector('input:not([type=file]),textarea');
+  if(first) first.focus(); else $('#close').focus();}
 const shut=()=>$('#veil').classList.add('hide');
+/* A screen with boxes to fill in closes only on Close. A click on the dark
+   surround, or a tap of Escape, used to discard half-entered settings. */
+const modalHasForm=()=>!!$('#mbody').querySelector('input:not([type=file]),textarea');
 $('#close').onclick=shut;
-$('#veil').onclick=e=>{if(e.target.id==='veil')shut();};
-document.addEventListener('keydown',e=>{if(e.key==='Escape')shut();});
+$('#veil').onclick=e=>{if(e.target.id==='veil'&&!modalHasForm())shut();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!modalHasForm())shut();});
 
 function mini(i,tot){const t=tot||i.qty,w=x=>t?(x/t*100).toFixed(2):0;
   return `<div class="minibar">${i.pur>0?`<i class="p" style="width:${w(i.pur)}%"></i>`:''}${i.inp>0?`<i class="i" style="width:${w(i.inp)}%"></i>`:''}${i.packed>0?`<i class="k" style="width:${w(i.packed)}%"></i>`:''}</div>`;}
