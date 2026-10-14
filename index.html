@@ -99,6 +99,8 @@ button{font:inherit;font-size:12.5px;padding:6px 13px;border:1px solid var(--lin
   color:var(--mute);border-radius:2px;cursor:pointer;letter-spacing:.04em}
 button:hover{color:var(--ontrack);border-color:var(--ontrack)}
 button:focus-visible{outline:2px solid var(--ontrack);outline-offset:2px}
+button.quiet{background:transparent;color:var(--dim)}
+button.quiet:hover{color:var(--ink);border-color:var(--dim)}
 
 .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;
   background:var(--line);border:1px solid var(--line);margin-bottom:22px}
@@ -765,7 +767,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v28 · 3 Sep 2026';
+const VERSION='v29 · 14 Oct 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -2342,6 +2344,7 @@ function sheetSetup(){
       'value="'+(cfg.key||'phf-'+Math.random().toString(36).slice(2,8))+'"></label>'+
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'+
         '<button id="gssave">Save and test</button>'+
+        (cfg.url?'<button id="gsforget" class="quiet">Forget these settings</button>':'')+
         '<span id="gsmsg" style="color:var(--dim);font-size:12.5px"></span></div>'+
     '</div>');
 
@@ -2357,6 +2360,12 @@ function sheetSetup(){
            try{document.execCommand('copy');}catch(e){} document.body.removeChild(ta); }
     $('#gscopy').textContent='Copied';
     setTimeout(function(){ $('#gscopy').textContent='Copy the code'; },1600);
+  };
+  const fg=$('#gsforget');
+  if(fg) fg.onclick=function(){
+    try{ localStorage.removeItem(SHEETKEY); }catch(e){}
+    $('#gsurl').value=''; $('#gskey').value='';
+    $('#gsmsg').textContent='Cleared. Enter the address and secret word again.';
   };
   $('#gssave').onclick=async function(){
     const url=$('#gsurl').value.trim(), key=keyNow();
@@ -2404,7 +2413,12 @@ async function writeOrder(res){
     if(btn) btn.textContent='Added';
   } else {
     if(btn) btn.disabled=false;
-    if(msg) msg.textContent='Failed: '+(r.error||'unknown');
+    const why=String(r.error||'unknown');
+    if(msg) msg.textContent='Failed: '+why+
+      (/secret/i.test(why) ? ' \u2014 press Change sheet settings to correct it.' : '');
+    /* bring the way out forward instead of leaving it looking optional */
+    const su2=$('#impsetup');
+    if(su2 && /secret|not set up/i.test(why)) su2.classList.remove('quiet');
   }
 }
 
@@ -2777,9 +2791,12 @@ function importPreview(res,fileName){
 
   const canWrite=res.ok&&!exists;
   const cfg=jget(SHEETKEY);
+  /* The settings screen must always be reachable. It used to appear only when
+     nothing was saved, so saving a wrong secret left no way back to correct it. */
   const btns=canWrite
     ? (cfg&&cfg.url
-        ? '<button id="impwrite">Add to my sheet</button>'
+        ? '<button id="impwrite">Add to my sheet</button>'+
+          '<button id="impsetup" class="quiet">Change sheet settings</button>'
         : '<button id="impsetup">Set up writing to the sheet</button>')+
       '<button id="impdl">Download to import by hand</button>'
     : '<button id="impdl">Download anyway</button>';
