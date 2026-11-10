@@ -622,6 +622,7 @@ footer{color:var(--dim);font-size:11.5px;border-top:1px solid var(--line);paddin
       <button id="theme" title="Switch between dark and light">Light</button>
       <button id="addorder">Add order</button>
       <button id="weekly">Weekly plan</button>
+      <button id="reports" title="Printable follow-up lists: what is at purchase, in production, and packed but not yet shipped">Follow-ups</button>
       <button id="report">Daily plan</button>
       <button id="install" class="hide">Install app</button>
       <button id="reload">Refresh now</button>
@@ -795,7 +796,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v31 · 14 Oct 2026';
+const VERSION='v32 · 10 Nov 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -3255,6 +3256,368 @@ function openWeekly(){
 }
 
 
+/* ---------------- stage follow-up reports ----------------
+   Three printable lists for the managers: everything sitting at purchase,
+   everything in production, and everything packed but not yet shipped.
+   Each one is grouped by customer and runs continuously down the pages.
+
+   Pages are built here in JavaScript rather than left to the browser. With
+   @page margin set to zero (which is what keeps the board's web address off
+   the paper) a single long block would print its text hard against the edge
+   of every sheet after the first. Cutting the rows into fixed sheets gives
+   every page the same margin, repeats the column headings, and lets the
+   footer say which page it is.
+
+   Everything is scoped under #rproot with an rp prefix so none of the
+   board's own styles can reach inside and nothing here can leak out.
+   --------------------------------------------------------------------- */
+const RPCSS=`
+#rpveil{position:fixed;inset:0;z-index:60;background:#DFE3E7;overflow:auto;
+  font-family:Inter,"Helvetica Neue",Helvetica,Arial,sans-serif}
+#rpbar{position:sticky;top:0;background:#0E1418;color:#fff;padding:10px 18px;display:flex;
+  justify-content:space-between;align-items:center;font-size:13px;z-index:2;gap:12px}
+#rpbar .rptabs{display:flex;gap:6px}
+#rpbar button{font:inherit;font-size:12.5px;font-weight:600;padding:8px 16px;border:0;
+  background:#fff;color:#0E1418;cursor:pointer;border-radius:2px}
+#rpbar button.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4)}
+#rpbar button.on{background:#2BFFB0;color:#0E1418}
+#rpbar .rpact{display:flex;gap:8px;align-items:center}
+#rproot{color:#0E1418;font-size:10px;line-height:1.4}
+#rproot *{box-sizing:border-box;margin:0;padding:0;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+#rproot .rpsheet{width:210mm;min-height:297mm;background:#fff;padding:12mm 11mm;margin:8mm auto;
+  box-shadow:0 2px 14px rgba(0,0,0,.15);display:flex;flex-direction:column}
+#rproot .rptop{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
+  border-bottom:2px solid #0E1418;padding-bottom:7px;margin-bottom:10px}
+#rproot .rptop img{height:30px;width:auto;display:block;margin-bottom:4px;filter:none}
+#rproot h1{font-size:15px;font-weight:600;letter-spacing:-.02em;color:#0E1418;
+  text-transform:none;font-family:inherit}
+#rproot .when{text-align:right;font-size:9.5px;color:#57646F;line-height:1.45}
+#rproot .when b{font-size:11px;color:#0E1418}
+#rproot .sub{color:#8D99A4;font-size:8px;letter-spacing:.15em;text-transform:uppercase;font-weight:600}
+#rproot .rpkpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:#E1E6EA;
+  border:1px solid #E1E6EA;margin-bottom:9px}
+#rproot .rpkpi{background:#fff;padding:6px 9px}
+#rproot .rpkpi .k{font-size:7.5px;letter-spacing:.12em;text-transform:uppercase;color:#8D99A4;
+  font-weight:600}
+#rproot .rpkpi .v{font-size:17px;font-weight:600;letter-spacing:-.03em;line-height:1.15;color:#0E1418}
+#rproot .rpkpi .v.bad{color:#D01A45}
+#rproot .rpsay{color:#57646F;font-size:8.5px;margin-bottom:9px;line-height:1.45}
+#rproot table{width:100%;border-collapse:collapse;font-size:9.5px;background:none;border:0}
+#rproot th{text-align:left;font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:#8D99A4;font-weight:600;padding:4px 5px;border-bottom:1.3px solid #0E1418;
+  white-space:nowrap;background:none}
+#rproot th.n,#rproot td.n{text-align:right}
+#rproot td{padding:3px 5px;border-bottom:1px solid #EEF1F4;vertical-align:top;color:#0E1418}
+#rproot td.n{font-variant-numeric:tabular-nums}
+#rproot td.dim{color:#8D99A4}
+#rproot td.dt{white-space:nowrap}
+#rproot td.dt.late{color:#D01A45;font-weight:600}
+#rproot tr.late td{background:#FFF4F7}
+#rproot tr.cust td{background:#0E1418;color:#fff;font-weight:600;font-size:10px;
+  letter-spacing:.02em;padding:5px 5px;border-bottom:0}
+#rproot tr.cust td .r{float:right;font-weight:600;color:#9FB0BD;font-size:8.5px}
+#rproot tr.sub2 td{border-top:1.3px solid #0E1418;border-bottom:0;font-weight:600;
+  padding-top:4px;padding-bottom:7px}
+#rproot tr.grand td{border-top:2px solid #0E1418;border-bottom:0;font-weight:600;
+  font-size:11px;padding-top:6px}
+#rproot .rpfoot{margin-top:auto;border-top:1px solid #E1E6EA;padding-top:4px;display:flex;
+  justify-content:space-between;color:#8D99A4;font-size:7.5px}
+#rproot .rpnone{color:#8D99A4;font-size:10px;padding:14px 0}
+@media print{
+  /* No page margin at all. The paper margin is each sheet's own padding.
+     With no margin there is nowhere for the browser to draw its own header
+     and footer, and that header is where the board's web address appears.
+     It was never printed by this page. */
+  @page{size:A4 portrait;margin:0}
+  html,body{background:#fff !important;margin:0 !important;padding:0 !important;
+    min-height:0 !important;height:auto !important}
+  body>*{display:none !important}
+  body>#rpveil{display:block !important;position:static !important;overflow:visible !important;
+    background:#fff !important;margin:0 !important;padding:0 !important}
+  #rpbar{display:none !important}
+  #rproot{margin:0 !important;padding:0 !important}
+  #rproot .rpsheet{width:210mm !important;height:297mm !important;min-height:297mm !important;
+    margin:0 !important;padding:12mm 11mm !important;box-shadow:none !important}
+  /* Break before every sheet after the first, never after the last one.
+     A break after the final sheet is what leaves a blank page at the end. */
+  #rproot .rpsheet + .rpsheet{break-before:page;page-break-before:always}
+  #rproot tr{break-inside:avoid;page-break-inside:avoid}
+}`;
+
+/* Which figure each report counts, and the words that go with it. */
+const RPSTAGE={
+  pur:{btn:'Purchasing', title:'Items at Purchase',
+       col:'At purchase', last:'Waiting',
+       say:'Every item with pieces still at the purchase stage, grouped by customer. '+
+           'Waiting is the number of days since this item last moved, where the board has a record.',
+       get:function(i){ return i.pur; }},
+  inp:{btn:'Production', title:'Items in Production',
+       col:'In production', last:'Waiting',
+       say:'Every item with pieces on the floor in production, grouped by customer. '+
+           'Waiting is the number of days since this item last moved, where the board has a record.',
+       get:function(i){ return i.inp; }},
+  pkd:{btn:'Packed', title:'Items Packed, Not Yet Shipped',
+       col:'Packed', last:'Of order',
+       say:'Packed pieces on orders that have not shipped yet, grouped by customer. '+
+           'Orders already shipped and closed are left out. Of order is how much of that '+
+           'item’s full quantity is now packed.',
+       get:function(i){ return i.packed; }}
+};
+
+function rpEsc(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function rpDate(d){
+  if(!d) return '—';
+  return new Date(d).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'2-digit'});
+}
+
+/* Gather the rows for one report, already grouped and sorted. */
+function rpGather(stage){
+  const S=RPSTAGE[stage];
+  const out={groups:[],lines:0,pieces:0,late:0,custs:0};
+  if(!DATA||!DATA.orders) return out;
+
+  /* Days since an item last moved. Built from the board's saved history, so
+     on a browser that has only just started using the board this is empty
+     and the column simply reads as a dash. */
+  const sat={};
+  try{
+    const fs=flowStats(DATA);
+    (fs&&fs.idle?fs.idle:[]).forEach(function(r){
+      if(r.days!=null) sat[r.order+'|'+r.code]=r.days;
+    });
+  }catch(e){ /* history is a convenience, never a reason to lose the report */ }
+
+  const today=new Date(); today.setHours(0,0,0,0);
+  const by={};
+  DATA.orders.forEach(function(o){
+    const r=risk(o,today);
+    /* The packed report is a ready-to-ship list, so finished orders drop out. */
+    if(stage==='pkd'&&r.k==='done') return;
+    const late=(r.k==='overdue');
+    (o.items||[]).forEach(function(i){
+      const q=S.get(i);
+      if(!(q>0)) return;
+      const cust=String(o.cust||'').trim()||'Unknown';
+      if(!by[cust]) by[cust]=[];
+      by[cust].push({order:o.id,code:i.code,desc:i.desc,ddate:o.ddate,late:late,
+                     qty:q,total:i.qty,wait:sat[o.id+'|'+i.code]});
+    });
+  });
+
+  Object.keys(by).sort().forEach(function(cust){
+    const rows=by[cust];
+    rows.sort(function(a,b){
+      const ad=a.ddate?new Date(a.ddate).getTime():Infinity;
+      const bd=b.ddate?new Date(b.ddate).getTime():Infinity;
+      if(ad!==bd) return ad-bd;
+      if(a.order!==b.order) return a.order<b.order?-1:1;
+      return a.code<b.code?-1:(a.code>b.code?1:0);
+    });
+    const pieces=rows.reduce(function(s,r){ return s+r.qty; },0);
+    out.groups.push({cust:cust,rows:rows,pieces:pieces});
+    out.lines+=rows.length;
+    out.pieces+=pieces;
+    out.late+=rows.filter(function(r){ return r.late; }).length;
+  });
+  out.custs=out.groups.length;
+  return out;
+}
+
+/* Build every printable row once, measure the rows where they will actually
+   be printed, then cut them into sheets by their real height.
+
+   Guessing a row height does not work for this report. Long instrument
+   descriptions wrap onto a second line, so rows are not all the same height,
+   and a guess that is slightly too generous pushes rows off the bottom of a
+   fixed-height sheet, where they are silently lost from the paper. Measuring
+   removes the guess. */
+
+function rpHead(S,when,pi,total){
+  return '<div class="rptop"><div><img src="logo.png" alt="Professional">'+
+    '<h1>'+S.title+'</h1></div>'+
+    '<div class="when"><div class="sub">Printed</div><div><b>'+rpEsc(when)+'</b></div>'+
+    '<div class="dim">Page '+pi+' of '+total+'</div></div></div>';
+}
+function rpStrip(S,data){
+  return '<div class="rpkpis">'+
+    '<div class="rpkpi"><div class="k">Customers</div><div class="v">'+data.custs+'</div></div>'+
+    '<div class="rpkpi"><div class="k">Item lines</div><div class="v">'+fmt(data.lines)+'</div></div>'+
+    '<div class="rpkpi"><div class="k">Pieces</div><div class="v">'+fmt(data.pieces)+'</div></div>'+
+    '<div class="rpkpi"><div class="k">On overdue orders</div><div class="v '+
+      (data.late?'bad':'')+'">'+fmt(data.late)+'</div></div></div>'+
+    '<p class="rpsay">'+S.say+' Rows shaded pink sit on an order that is already past '+
+    'its delivery date.</p>';
+}
+function rpFoot(S,pi,total){
+  return '<div class="rpfoot"><span>Professional Hospital Furnishers · Sialkot · '+
+    S.title+'</span><span>Page '+pi+' of '+total+'</span></div>';
+}
+const RPCOLS='<colgroup><col style="width:22mm"><col style="width:24mm"><col>'+
+  '<col style="width:19mm"><col style="width:20mm"><col style="width:17mm"></colgroup>';
+function rpThead(S){
+  return '<tr><th>Order</th><th>Item code</th><th>Description</th>'+
+    '<th>Due</th><th class="n">'+S.col+'</th><th class="n">'+S.last+'</th></tr>';
+}
+
+/* One entry per printable table row, in order, each with its own HTML. */
+function rpBlocks(data,stage){
+  const out=[];
+  data.groups.forEach(function(g){
+    out.push({t:'cust',html:'<tr class="cust"><td colspan="6">'+rpEsc(g.cust)+
+      '<span class="r">'+g.rows.length+' item'+(g.rows.length===1?'':'s')+
+      ' · '+fmt(g.pieces)+' pieces</span></td></tr>'});
+    g.rows.forEach(function(r){
+      const last=(stage==='pkd')
+        ? (r.total?Math.round(r.qty/r.total*100)+'%':'—')
+        : (r.wait==null?'—':r.wait+'d');
+      out.push({t:'row',html:'<tr'+(r.late?' class="late"':'')+'>'+
+        '<td>'+rpEsc(r.order)+'</td>'+
+        '<td>'+rpEsc(r.code)+'</td>'+
+        '<td>'+rpEsc(r.desc)+'</td>'+
+        '<td class="dt'+(r.late?' late':'')+'">'+rpDate(r.ddate)+'</td>'+
+        '<td class="n">'+fmt(r.qty)+'</td>'+
+        '<td class="n dim">'+last+'</td></tr>'});
+    });
+    out.push({t:'sub',html:'<tr class="sub2"><td colspan="4">'+rpEsc(g.cust)+' total</td>'+
+      '<td class="n">'+fmt(g.pieces)+'</td><td></td></tr>'});
+  });
+  if(data.groups.length>1){
+    out.push({t:'grand',html:'<tr class="grand"><td colspan="4">All customers</td>'+
+      '<td class="n">'+fmt(data.pieces)+'</td><td></td></tr>'});
+  }
+  return out;
+}
+
+function rpOuter(el){
+  if(!el) return 0;
+  const cs=el.ownerDocument.defaultView.getComputedStyle(el);
+  return el.offsetHeight+(parseFloat(cs.marginTop)||0)+(parseFloat(cs.marginBottom)||0);
+}
+
+/* Lay every row out once, off to the side but with the real sheet styles on
+   it, and read back how tall each one came out. */
+function rpMeasure(root,S,data,blocks,when){
+  const doc=root.ownerDocument;
+  const probe=doc.createElement('div');
+  probe.className='rpsheet';
+  probe.style.position='absolute';
+  probe.style.left='-10000px';
+  probe.style.top='0';
+  probe.style.height='auto';
+  probe.innerHTML=rpHead(S,when,1,1)+rpStrip(S,data)+
+    '<table>'+RPCOLS+'<thead>'+rpThead(S)+'</thead><tbody>'+
+    blocks.map(function(b){ return b.html; }).join('')+'</tbody></table>'+rpFoot(S,1,1);
+  root.appendChild(probe);
+
+  const cs=doc.defaultView.getComputedStyle(probe);
+  /* The sheet is a fixed 297mm tall on paper; read that off the stylesheet
+     rather than off this probe, which was told to grow to fit. */
+  const mm=probe.clientWidth/210;            // px per mm at the current zoom
+  const pageH=297*mm-(parseFloat(cs.paddingTop)||0)-(parseFloat(cs.paddingBottom)||0);
+
+  const headH=rpOuter(probe.querySelector('.rptop'));
+  const kpiH=rpOuter(probe.querySelector('.rpkpis'))+rpOuter(probe.querySelector('.rpsay'));
+  const footH=rpOuter(probe.querySelector('.rpfoot'));
+  const theadH=probe.querySelector('thead').offsetHeight;
+  const rows=probe.querySelectorAll('tbody tr');
+  for(let i=0;i<blocks.length&&i<rows.length;i++) blocks[i].h=rows[i].offsetHeight;
+
+  root.removeChild(probe);
+  /* Hold back a little height. It absorbs the rounding between measuring on
+     screen and laying out on paper, and the cost is under one row per page. */
+  return {first:pageH-headH-kpiH-footH-theadH-18,
+          rest:pageH-headH-footH-theadH-18};
+}
+
+function rpPaginate(blocks,budget){
+  const pages=[]; let cur=[], used=0, cap=budget.first;
+  for(let k=0;k<blocks.length;k++){
+    const b=blocks[k];
+    /* Never leave a customer heading stranded with nothing under it: keep it
+       with the first two of its own rows. */
+    let need=b.h||18;
+    if(b.t==='cust'){
+      need+=(blocks[k+1]?blocks[k+1].h||18:0)+(blocks[k+2]?blocks[k+2].h||18:0);
+    }
+    if(used+need>cap&&cur.length){ pages.push(cur); cur=[]; used=0; cap=budget.rest; }
+    cur.push(b); used+=(b.h||18);
+  }
+  if(cur.length) pages.push(cur);
+  return pages.length?pages:[[]];
+}
+
+/* Draw the whole report into root. Measures first, then paints. */
+function rpRender(root,stage){
+  const S=RPSTAGE[stage], data=rpGather(stage);
+  const now=new Date();
+  const when=now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+
+    ' · '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+
+  if(!data.lines){
+    root.innerHTML='<div class="rpsheet">'+rpHead(S,when,1,1)+
+      '<p class="rpnone">Nothing to show. No items are at this stage right now.</p>'+
+      rpFoot(S,1,1)+'</div>';
+    return;
+  }
+
+  const blocks=rpBlocks(data,stage);
+  root.innerHTML='';
+  const budget=rpMeasure(root,S,data,blocks,when);
+  const pages=rpPaginate(blocks,budget);
+
+  root.innerHTML=pages.map(function(page,pi){
+    return '<div class="rpsheet">'+rpHead(S,when,pi+1,pages.length)+
+      (pi===0?rpStrip(S,data):'')+
+      '<table>'+RPCOLS+'<thead>'+rpThead(S)+'</thead><tbody>'+
+      page.map(function(b){ return b.html; }).join('')+'</tbody></table>'+
+      rpFoot(S,pi+1,pages.length)+'</div>';
+  }).join('');
+}
+
+let RPNOW='pur';
+
+function openReports(stage){
+  if(!document.getElementById('rpcss')){
+    const st=document.createElement('style');
+    st.id='rpcss'; st.textContent=RPCSS; document.head.appendChild(st);
+  }
+  RPNOW=RPSTAGE[stage]?stage:'pur';
+  let v=document.getElementById('rpveil');
+  if(!v){ v=document.createElement('div'); v.id='rpveil'; document.body.appendChild(v); }
+
+  const tabs=Object.keys(RPSTAGE).map(function(k){
+    return '<button data-rp="'+k+'"'+(k===RPNOW?' class="on"':'')+'>'+RPSTAGE[k].btn+'</button>';
+  }).join('');
+
+  v.innerHTML='<div id="rpbar"><span class="rptabs">'+tabs+'</span>'+
+    '<span class="rpact"><button class="ghost" id="rpclose">Close</button>'+
+    '<button id="rpprint">Print / Save as PDF</button></span></div>'+
+    '<div id="rproot"></div>';
+  v.style.display='block';
+  v.scrollTop=0;
+  rpRender(document.getElementById('rproot'),RPNOW);
+
+  v.querySelectorAll('#rpbar button[data-rp]').forEach(function(b){
+    b.onclick=function(){ openReports(b.dataset.rp); };
+  });
+  document.getElementById('rpprint').onclick=function(){
+    /* If a browser still insists on printing its own header, make sure what
+       it shows is a sensible title and nothing revealing. The web address
+       itself can only be turned off in the print dialog. */
+    const was=document.title;
+    document.title=RPSTAGE[RPNOW].title;
+    window.print();
+    setTimeout(function(){ document.title=was; },1200);
+  };
+  document.getElementById('rpclose').onclick=function(){ v.style.display='none'; };
+}
+
+
+
 /* ---------------- daily plans, one per job ----------------
    Short, plain, and about today. Production only. --------------------- */
 function planHeader(who){
@@ -3967,6 +4330,7 @@ window.addEventListener('appinstalled',()=>$('#install').classList.add('hide'));
 
 $('#report').onclick=function(){ if(DATA) showReport(); };
 $('#weekly').onclick=function(){ if(DATA) openWeekly(); };
+$('#reports').onclick=function(){ if(DATA) openReports(RPNOW); };
 $('#addorder').onclick=function(){ if(DATA) $('#pdffile').click(); };
 $('#pinreset').onclick=function(){ PINS=[]; savePins(); if(DATA) render(DATA); };
 
