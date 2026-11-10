@@ -796,7 +796,7 @@ window.onerror=function(msg,src,line,col){
   }catch(e){}
   return false;
 };
-const VERSION='v32 · 10 Nov 2026';
+const VERSION='v33 · 10 Nov 2026';
 
 /* ============================================================
    WHERE THE DATA COMES FROM
@@ -3274,14 +3274,30 @@ function openWeekly(){
 const RPCSS=`
 #rpveil{position:fixed;inset:0;z-index:60;background:#DFE3E7;overflow:auto;
   font-family:Inter,"Helvetica Neue",Helvetica,Arial,sans-serif}
-#rpbar{position:sticky;top:0;background:#0E1418;color:#fff;padding:10px 18px;display:flex;
-  justify-content:space-between;align-items:center;font-size:13px;z-index:2;gap:12px}
+#rpbar{position:sticky;top:0;background:#0E1418;color:#fff;padding:10px 18px;
+  font-size:13px;z-index:2}
+#rpbar .rprow{display:flex;justify-content:space-between;align-items:center;gap:12px}
 #rpbar .rptabs{display:flex;gap:6px}
 #rpbar button{font:inherit;font-size:12.5px;font-weight:600;padding:8px 16px;border:0;
   background:#fff;color:#0E1418;cursor:pointer;border-radius:2px}
 #rpbar button.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4)}
 #rpbar button.on{background:#2BFFB0;color:#0E1418}
 #rpbar .rpact{display:flex;gap:8px;align-items:center}
+/* the customer picker: one chip per customer, click to include or drop */
+#rppick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.18)}
+#rppick .lab{color:#8D99A4;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  font-weight:600;margin-right:2px}
+#rppick button{font-size:11.5px;padding:5px 10px;background:transparent;color:#C6CDD4;
+  border:1px solid rgba(255,255,255,.28)}
+#rppick button.on{background:#fff;color:#0E1418;border-color:#fff}
+#rppick button i{font-style:normal;opacity:.6;margin-left:5px;font-variant-numeric:tabular-nums}
+/* A customer with nothing at this stage is dimmed but still pickable, so a
+   set like "E2, X2, IDS" can be built on any tab and carried to the others. */
+#rppick button.zero{opacity:.45}
+#rppick button.zero.on{opacity:.75}
+#rppick button.all{border-color:rgba(255,255,255,.5);color:#fff}
+#rppick button.all.on{background:#2BFFB0;color:#0E1418;border-color:#2BFFB0}
 #rproot{color:#0E1418;font-size:10px;line-height:1.4}
 #rproot *{box-sizing:border-box;margin:0;padding:0;
   -webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -3292,6 +3308,8 @@ const RPCSS=`
 #rproot .rptop img{height:30px;width:auto;display:block;margin-bottom:4px;filter:none}
 #rproot h1{font-size:15px;font-weight:600;letter-spacing:-.02em;color:#0E1418;
   text-transform:none;font-family:inherit}
+#rproot .pick{font-size:9px;font-weight:600;color:#0E1418;background:#EDF1F5;
+  display:inline-block;padding:2px 7px;margin-top:4px;border-radius:2px}
 #rproot .when{text-align:right;font-size:9.5px;color:#57646F;line-height:1.45}
 #rproot .when b{font-size:11px;color:#0E1418}
 #rproot .sub{color:#8D99A4;font-size:8px;letter-spacing:.15em;text-transform:uppercase;font-weight:600}
@@ -3365,6 +3383,32 @@ const RPSTAGE={
        get:function(i){ return i.packed; }}
 };
 
+/* Which customers to print. null means every one of them, which is how the
+   reports always open. Kept for this sitting only: a reload goes back to all
+   customers, so nobody can print a short report by accident days later. */
+let RPPICK=null;
+
+/* Every customer with something live at any of the three stages, together
+   with how many item lines they have at the stage now on screen. The list
+   stays the same across the three tabs so the row of buttons does not jump
+   about; a customer with nothing at this stage simply shows zero. */
+function rpCustCounts(stage){
+  if(!DATA||!DATA.orders) return [];
+  const seen={}, names=[];
+  const today=new Date(); today.setHours(0,0,0,0);
+  DATA.orders.forEach(function(o){
+    const cust=String(o.cust||'').trim()||'Unknown';
+    const done=(risk(o,today).k==='done');
+    (o.items||[]).forEach(function(i){
+      if(!(i.pur>0||i.inp>0||(i.packed>0&&!done))) return;
+      if(!seen[cust]){ seen[cust]={cust:cust,lines:0}; names.push(cust); }
+      const q=RPSTAGE[stage].get(i);
+      if(q>0&&!(stage==='pkd'&&done)) seen[cust].lines++;
+    });
+  });
+  return names.sort().map(function(c){ return seen[c]; });
+}
+
 function rpEsc(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -3402,6 +3446,7 @@ function rpGather(stage){
       const q=S.get(i);
       if(!(q>0)) return;
       const cust=String(o.cust||'').trim()||'Unknown';
+      if(RPPICK&&RPPICK.indexOf(cust)<0) return;   // customer not picked
       if(!by[cust]) by[cust]=[];
       by[cust].push({order:o.id,code:i.code,desc:i.desc,ddate:o.ddate,late:late,
                      qty:q,total:i.qty,wait:sat[o.id+'|'+i.code]});
@@ -3436,9 +3481,21 @@ function rpGather(stage){
    fixed-height sheet, where they are silently lost from the paper. Measuring
    removes the guess. */
 
+/* When only some customers are being printed the paper has to say so, or a
+   sheet on the floor looks like the whole picture when it is not. */
+function rpPickWords(){
+  if(!RPPICK||!RPPICK.length) return '';
+  /* Same order as the customers appear in the report below, not the order
+     they happened to be clicked in. */
+  const names=RPPICK.slice().sort();
+  const shown=names.slice(0,8).join(' · ');
+  return 'Customers: '+shown+(names.length>8?' + '+(names.length-8)+' more':'');
+}
 function rpHead(S,when,pi,total){
+  const pick=rpPickWords();
   return '<div class="rptop"><div><img src="logo.png" alt="Professional">'+
-    '<h1>'+S.title+'</h1></div>'+
+    '<h1>'+S.title+'</h1>'+
+    (pick?'<div class="pick">'+rpEsc(pick)+'</div>':'')+'</div>'+
     '<div class="when"><div class="sub">Printed</div><div><b>'+rpEsc(when)+'</b></div>'+
     '<div class="dim">Page '+pi+' of '+total+'</div></div></div>';
 }
@@ -3558,9 +3615,12 @@ function rpRender(root,stage){
     ' · '+now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
 
   if(!data.lines){
+    const why=RPPICK
+      ? 'Nothing to show. The customers you picked have no items at this stage. '+
+        'Press All customers to see everyone.'
+      : 'Nothing to show. No items are at this stage right now.';
     root.innerHTML='<div class="rpsheet">'+rpHead(S,when,1,1)+
-      '<p class="rpnone">Nothing to show. No items are at this stage right now.</p>'+
-      rpFoot(S,1,1)+'</div>';
+      '<p class="rpnone">'+why+'</p>'+rpFoot(S,1,1)+'</div>';
     return;
   }
 
@@ -3593,16 +3653,56 @@ function openReports(stage){
     return '<button data-rp="'+k+'"'+(k===RPNOW?' class="on"':'')+'>'+RPSTAGE[k].btn+'</button>';
   }).join('');
 
-  v.innerHTML='<div id="rpbar"><span class="rptabs">'+tabs+'</span>'+
+  const counts=rpCustCounts(RPNOW);
+  /* Drop any customer that has since left the order book, so a stale pick
+     can never quietly empty the report. */
+  if(RPPICK){
+    const live=counts.map(function(c){ return c.cust; });
+    RPPICK=RPPICK.filter(function(c){ return live.indexOf(c)>=0; });
+    if(!RPPICK.length) RPPICK=null;
+  }
+  const chips=counts.map(function(c){
+    const on=!RPPICK||RPPICK.indexOf(c.cust)>=0;
+    const cls=(on?'on ':'')+(c.lines?'':'zero');
+    return '<button data-cust="'+rpEsc(c.cust)+'"'+(cls?' class="'+cls.trim()+'"':'')+
+      ' title="'+c.lines+' item line'+(c.lines===1?'':'s')+' at this stage">'+
+      rpEsc(c.cust)+'<i>'+c.lines+'</i></button>';
+  }).join('');
+
+  v.innerHTML='<div id="rpbar">'+
+    '<div class="rprow"><span class="rptabs">'+tabs+'</span>'+
     '<span class="rpact"><button class="ghost" id="rpclose">Close</button>'+
     '<button id="rpprint">Print / Save as PDF</button></span></div>'+
-    '<div id="rproot"></div>';
+    (counts.length>1
+      ? '<div id="rppick"><span class="lab">Customers</span>'+
+        '<button class="all'+(RPPICK?'':' on')+'" data-all="1">All customers</button>'+
+        chips+'</div>'
+      : '')+
+    '</div><div id="rproot"></div>';
   v.style.display='block';
   v.scrollTop=0;
   rpRender(document.getElementById('rproot'),RPNOW);
 
   v.querySelectorAll('#rpbar button[data-rp]').forEach(function(b){
     b.onclick=function(){ openReports(b.dataset.rp); };
+  });
+  const allBtn=v.querySelector('#rppick button[data-all]');
+  if(allBtn) allBtn.onclick=function(){ RPPICK=null; openReports(RPNOW); };
+  v.querySelectorAll('#rppick button[data-cust]').forEach(function(b){
+    b.onclick=function(){
+      const name=b.dataset.cust;
+      /* First click out of "all customers" narrows to just that one, which is
+         what someone chasing a single customer means. After that each click
+         adds or removes one. */
+      if(!RPPICK){ RPPICK=[name]; }
+      else{
+        const at=RPPICK.indexOf(name);
+        if(at<0) RPPICK.push(name);
+        else RPPICK.splice(at,1);
+        if(!RPPICK.length) RPPICK=null;
+      }
+      openReports(RPNOW);
+    };
   });
   document.getElementById('rpprint').onclick=function(){
     /* If a browser still insists on printing its own header, make sure what
